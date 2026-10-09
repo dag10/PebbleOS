@@ -42,8 +42,7 @@ static const struct {
   AppInstallId install_id;
   bool move_on_activity;
 } s_override_table[] = {
-  {APP_ID_SPORTS, false},
-  {APP_ID_GOLF, false},
+  {APP_ID_HELLO_WORLD, false}, {APP_ID_SPORTS, false}, {APP_ID_GOLF, false},
 #ifdef APP_ID_WORKOUT
   {APP_ID_WORKOUT, true},
 #endif
