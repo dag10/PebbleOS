@@ -277,6 +277,10 @@ WakeupId sys_wakeup_schedule(time_t timestamp, int32_t reason, bool notify_if_mi
 void sys_wakeup_delete(WakeupId wakeup_id);
 void sys_wakeup_cancel_all_for_app(void);
 time_t sys_wakeup_query(WakeupId wakeup_id);
+//! DrewPebbleOS extension: earliest future wakeup event scheduled by the app with
+//! @p app_uuid (any app, not only the caller).
+//! @return True and sets @p out_timestamp if there is one.
+bool sys_wakeup_get_next_for_app(const Uuid *app_uuid, time_t *out_timestamp);
 
 AppLaunchReason sys_process_get_launch_reason(void);
 ButtonId sys_process_get_launch_button(void);
