@@ -308,3 +308,31 @@ void test_wakeup__handle_clock_change_scheduled_jump(void) {
   // Make sure the wakeup event is no longer scheduled
   cl_assert_equal_i(sys_wakeup_query(first_timer), E_DOES_NOT_EXIST);
 }
+
+void test_wakeup__get_next_for_app(void) {
+  const Uuid test_uuid = TEST_UUID;
+  const Uuid other_uuid = UuidMake(0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
+                                   0x0C, 0x0D, 0x0E, 0x0F, 0x10);
+  const time_t start_time = sys_get_time();
+  time_t timestamp = 0;
+  sys_wakeup_cancel_all_for_app();
+
+  // Nothing scheduled
+  cl_assert_equal_b(sys_wakeup_get_next_for_app(&test_uuid, &timestamp), false);
+
+  // The earliest of the app's events is returned, regardless of scheduling order
+  sys_wakeup_schedule(start_time + WAKEUP_EVENT_WINDOW * 3, 0, false);
+  sys_wakeup_schedule(start_time + WAKEUP_EVENT_WINDOW * 2, 0, false);
+  cl_assert_equal_b(sys_wakeup_get_next_for_app(&test_uuid, &timestamp), true);
+  cl_assert_equal_i(timestamp, start_time + WAKEUP_EVENT_WINDOW * 2);
+
+  // Another app's events don't count
+  cl_assert_equal_b(sys_wakeup_get_next_for_app(&other_uuid, &timestamp), false);
+
+  // Events in the past are not returned
+  rtc_set_time(start_time + WAKEUP_EVENT_WINDOW * 2);
+  cl_assert_equal_b(sys_wakeup_get_next_for_app(&test_uuid, &timestamp), true);
+  cl_assert_equal_i(timestamp, start_time + WAKEUP_EVENT_WINDOW * 3);
+  rtc_set_time(start_time + WAKEUP_EVENT_WINDOW * 3);
+  cl_assert_equal_b(sys_wakeup_get_next_for_app(&test_uuid, &timestamp), false);
+}
