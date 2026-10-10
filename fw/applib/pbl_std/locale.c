@@ -2,6 +2,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include "locale.h"
+#include "applib/drew_os.h"
 #include "applib/i18n.h"
 #include "process_state/app_state/app_state.h"
 
@@ -24,6 +25,8 @@ char *pbl_setlocale(int category, const char *locale) {
         return info->app_locale_strings;
       case LC_TIME:
         return info->app_locale_time;
+      case DREW_OS_PROBE_CATEGORY:
+        return (char *)drew_os_get_info();
       default:
         return NULL;
     }
