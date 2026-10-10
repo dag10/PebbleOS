@@ -201,3 +201,77 @@ void test_app_glance_service__slice_with_no_expiration(void) {
   prv_check_expected_slice_data(no_expire_slice_data,
                                 expiring_slice_data->expiration_time + 9999999);
 }
+
+bool sys_app_glance_get_current_subtitle(const Uuid *app_uuid, char *buffer, size_t buffer_size);
+
+void test_app_glance_service__get_current_subtitle(void) {
+  const Uuid other_uuid = UuidMake(0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
+                                   0x0C, 0x0D, 0x0E, 0x0F, 0x10);
+  char buffer[ATTRIBUTE_APP_GLANCE_SUBTITLE_MAX_LEN + 1];
+
+  // No glance
+  cl_assert_equal_b(
+      sys_app_glance_get_current_subtitle(&APP_GLANCE_TEST_UUID, buffer, sizeof(buffer)), false);
+
+  const AppGlance glance = (AppGlance){
+    .num_slices = 1,
+    .slices = {
+      {
+        .expiration_time = APP_GLANCE_SLICE_NO_EXPIRATION,
+        .type = AppGlanceSliceType_IconAndSubtitle,
+        .icon_and_subtitle = {
+          .icon_resource_id = RESOURCE_ID_SETTINGS_ICON_AIRPLANE,
+          .template_string = "{time_since(1464734484)|format('%0fR:%0S')}",
+        },
+      },
+    },
+  };
+  cl_assert_equal_i(app_glance_db_insert_glance(&APP_GLANCE_TEST_UUID, &glance), S_SUCCESS);
+
+  // The template string is returned unrendered
+  cl_assert_equal_b(
+      sys_app_glance_get_current_subtitle(&APP_GLANCE_TEST_UUID, buffer, sizeof(buffer)), true);
+  cl_assert_equal_s(buffer, "{time_since(1464734484)|format('%0fR:%0S')}");
+
+  // It is truncated to the buffer and always NUL terminated
+  char small_buffer[8];
+  memset(small_buffer, 'x', sizeof(small_buffer));
+  cl_assert_equal_b(sys_app_glance_get_current_subtitle(&APP_GLANCE_TEST_UUID, small_buffer,
+                                                        sizeof(small_buffer)),
+                    true);
+  cl_assert_equal_s(small_buffer, "{time_s");
+
+  // Another app's glance doesn't count, and bad arguments fail
+  cl_assert_equal_b(sys_app_glance_get_current_subtitle(&other_uuid, buffer, sizeof(buffer)),
+                    false);
+  cl_assert_equal_b(sys_app_glance_get_current_subtitle(NULL, buffer, sizeof(buffer)), false);
+  cl_assert_equal_b(sys_app_glance_get_current_subtitle(&APP_GLANCE_TEST_UUID, NULL, 0), false);
+  cl_assert_equal_b(sys_app_glance_get_current_subtitle(&APP_GLANCE_TEST_UUID, buffer, 0), false);
+}
+
+void test_app_glance_service__get_current_subtitle_expired(void) {
+  const AppGlance glance = (AppGlance){
+    .num_slices = 1,
+    .slices = {
+      {
+        .expiration_time = 1464734484, // (Tue, 31 May 2016 22:41:24 GMT)
+        .type = AppGlanceSliceType_IconAndSubtitle,
+        .icon_and_subtitle = {
+          .icon_resource_id = RESOURCE_ID_SETTINGS_ICON_AIRPLANE,
+          .template_string = "1:23.45",
+        },
+      },
+    },
+  };
+  cl_assert_equal_i(app_glance_db_insert_glance(&APP_GLANCE_TEST_UUID, &glance), S_SUCCESS);
+  char buffer[ATTRIBUTE_APP_GLANCE_SUBTITLE_MAX_LEN + 1];
+
+  // Like the launcher, only the current (unexpired) slice counts
+  rtc_set_time(glance.slices[0].expiration_time - 5);
+  cl_assert_equal_b(
+      sys_app_glance_get_current_subtitle(&APP_GLANCE_TEST_UUID, buffer, sizeof(buffer)), true);
+  cl_assert_equal_s(buffer, "1:23.45");
+  rtc_set_time(glance.slices[0].expiration_time);
+  cl_assert_equal_b(
+      sys_app_glance_get_current_subtitle(&APP_GLANCE_TEST_UUID, buffer, sizeof(buffer)), false);
+}

@@ -263,6 +263,11 @@ bool sys_app_pp_has_capability(CommSessionCapability capability);
 bool sys_system_pp_has_capability(CommSessionCapability capability);
 
 bool sys_app_glance_update(const Uuid *uuid, const AppGlance *glance);
+//! DrewPebbleOS extension: copy the subtitle template string of the current slice of the glance
+//! of the app with @p app_uuid (any app, not only the caller) into @p buffer, NUL terminated and
+//! truncated to @p buffer_size.
+//! @return True if the app has a current subtitle slice.
+bool sys_app_glance_get_current_subtitle(const Uuid *app_uuid, char *buffer, size_t buffer_size);
 
 //! Waits for a certain amount of milliseconds
 //! @param millis The number of milliseconds to wait for
