@@ -3,7 +3,11 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
+#include <time.h>
+
+#include <pbl/util/uuid.h>
 
 //! DrewPebbleOS (personal fork) extensions for third-party apps.
 //!
@@ -15,7 +19,13 @@
 
 #define DREW_OS_PROBE_CATEGORY 0x44524557 /* 'DREW' */
 #define DREW_OS_MAGIC          "DrewPebbleOS"
-#define DREW_OS_API_VERSION    1
+#define DREW_OS_API_VERSION    2
+
+//! Bits for DrewOSInfo.capabilities
+typedef enum {
+  //! app_next_wakeup is available (api_version >= 2)
+  DREW_OS_CAP_APP_WAKEUP = (1 << 0),
+} DrewOSCapability;
 
 typedef struct DrewOSInfo {
   //! DREW_OS_MAGIC, NUL padded
@@ -24,12 +34,20 @@ typedef struct DrewOSInfo {
   uint16_t api_version;
   //! sizeof(DrewOSInfo) of the running firmware
   uint16_t size;
-  //! DrewOSCapability bits; none are defined yet
+  //! DrewOSCapability bits
   uint32_t capabilities;
   //! Firmware version tag, e.g. "v4.36.0-12-gabcdef0"
   const char *fw_version;
+
+  // api_version >= 2
+
+  //! Earliest future wakeup event scheduled by the app with @p app_uuid (any app,
+  //! not only the caller), as a UTC timestamp. Returns false if there is none.
+  //! Points at the sys_wakeup_get_next_for_app syscall, so unprivileged apps may
+  //! call it; both pointers must be in app memory.
+  bool (*app_next_wakeup)(const Uuid *app_uuid, time_t *out_timestamp);
 } DrewOSInfo;
 
-_Static_assert(sizeof(DrewOSInfo) == 28, "DrewOSInfo is ABI");
+_Static_assert(sizeof(DrewOSInfo) == 32, "DrewOSInfo is ABI");
 
 const DrewOSInfo *drew_os_get_info(void);
