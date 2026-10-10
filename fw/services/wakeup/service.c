@@ -637,6 +637,69 @@ PBL_SYSCALL(time_t, sys_wakeup_query, (VAL, WakeupId, wakeup_id)) {
   return return_time;
 }
 
+struct prv_next_for_app_s {
+  Uuid uuid;         //!< App whose events are searched
+  time_t now;        //!< Only events after this time count
+  bool found;        //!< True once an event was found
+  int32_t timestamp; //!< Earliest matching event so far
+};
+
+static bool prv_next_for_app_callback(SettingsFile *file, SettingsRecordInfo *info, void *context) {
+  if (info->key_len != sizeof(WakeupId) || info->val_len != sizeof(WakeupEntry)) {
+    return true; // continue iterating
+  }
+
+  struct prv_next_for_app_s *search = context;
+
+  WakeupEntry entry;
+  info->get_val(file, (uint8_t *)&entry, sizeof(WakeupEntry));
+
+  if (uuid_equal(&search->uuid, &entry.uuid) && entry.timestamp > search->now &&
+      (!search->found || entry.timestamp < search->timestamp)) {
+    search->found = true;
+    search->timestamp = entry.timestamp;
+  }
+
+  return true; // continue iterating
+}
+
+//! DrewPebbleOS extension: get the earliest future wakeup event of any app.
+//! Unlike sys_wakeup_query, the app does not need to own the event.
+PBL_SYSCALL(bool, sys_wakeup_get_next_for_app, (VAL, const Uuid *, app_uuid),
+            (VAL, time_t *, out_timestamp)) {
+  if (from_user) {
+    pbl_syscall_verify_user(app_uuid, sizeof(*app_uuid));
+    pbl_syscall_verify_user(out_timestamp, sizeof(*out_timestamp));
+  }
+
+  struct prv_next_for_app_s search = {
+    .uuid = *app_uuid,
+    .now = rtc_get_time(),
+  };
+
+  pbl_mutex_lock(&s_mutex, PBL_FOREVER);
+  {
+    SettingsFile wakeup_settings;
+    if (settings_file_open(&wakeup_settings, SETTINGS_FILE_NAME, SETTINGS_FILE_SIZE) == S_SUCCESS) {
+      settings_file_each(&wakeup_settings, prv_next_for_app_callback, &search);
+      settings_file_close(&wakeup_settings);
+    }
+  }
+  pbl_mutex_unlock(&s_mutex);
+
+  if (!search.found) {
+    return false;
+  }
+
+  time_t timestamp = search.timestamp;
+  if (prv_compiled_without_utc_support()) {
+    // Legacy apps expect everything in local time.
+    timestamp = time_utc_to_local(timestamp);
+  }
+  *out_timestamp = timestamp;
+  return true;
+}
+
 void wakeup_enable(bool enable) {
   bool was_enabled = s_wakeup_enabled;
   s_wakeup_enabled = enable;
