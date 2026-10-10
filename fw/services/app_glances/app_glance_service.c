@@ -1,6 +1,8 @@
 /* SPDX-FileCopyrightText: 2024 Google LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <string.h>
+
 #include <pbl/drivers/rtc.h>
 #include <pbl/kernel/assert.h>
 #include <pbl/kernel/syscall.h>
@@ -222,5 +224,30 @@ PBL_SYSCALL(bool, sys_app_glance_update, (IN, const Uuid *, uuid),
   if (success) {
     prv_glance_event_put(uuid);
   }
+  return success;
+}
+
+//! DrewPebbleOS extension: copy the subtitle template string of the current slice of any app's
+//! glance, unrendered (e.g. "{time_since(1700000000)|format('%0fR:%0S')}"). It is the text the
+//! launcher shows for that app, so it reveals nothing the launcher doesn't.
+PBL_SYSCALL(bool, sys_app_glance_get_current_subtitle, (VAL, const Uuid *, app_uuid),
+            (VAL, char *, buffer), (VAL, size_t, buffer_size)) {
+  if (from_user) {
+    pbl_syscall_verify_user(app_uuid, sizeof(*app_uuid));
+    pbl_syscall_verify_user(buffer, buffer_size);
+  }
+  if (!app_uuid || !buffer || buffer_size == 0) {
+    return false;
+  }
+
+  // Too big for the syscall stack
+  AppGlanceSliceInternal *slice = kernel_zalloc_check(sizeof(*slice));
+  const bool success = app_glance_service_get_current_slice(app_uuid, slice) &&
+                       (slice->type == AppGlanceSliceType_IconAndSubtitle);
+  if (success) {
+    strncpy(buffer, slice->icon_and_subtitle.template_string, buffer_size - 1);
+    buffer[buffer_size - 1] = '\0';
+  }
+  kernel_free(slice);
   return success;
 }
