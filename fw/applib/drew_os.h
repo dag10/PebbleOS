@@ -4,6 +4,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <time.h>
 
@@ -19,12 +20,14 @@
 
 #define DREW_OS_PROBE_CATEGORY 0x44524557 /* 'DREW' */
 #define DREW_OS_MAGIC          "DrewPebbleOS"
-#define DREW_OS_API_VERSION    2
+#define DREW_OS_API_VERSION    3
 
 //! Bits for DrewOSInfo.capabilities
 typedef enum {
   //! app_next_wakeup is available (api_version >= 2)
   DREW_OS_CAP_APP_WAKEUP = (1 << 0),
+  //! app_glance_subtitle is available (api_version >= 3)
+  DREW_OS_CAP_APP_GLANCE = (1 << 1),
 } DrewOSCapability;
 
 typedef struct DrewOSInfo {
@@ -46,8 +49,17 @@ typedef struct DrewOSInfo {
   //! Points at the sys_wakeup_get_next_for_app syscall, so unprivileged apps may
   //! call it; both pointers must be in app memory.
   bool (*app_next_wakeup)(const Uuid *app_uuid, time_t *out_timestamp);
+
+  // api_version >= 3
+
+  //! Copies the unrendered subtitle template string of the current slice of the
+  //! glance of the app with @p app_uuid (any app) into @p buffer, NUL terminated
+  //! and truncated to @p buffer_size. Returns false if it has none. Points at the
+  //! sys_app_glance_get_current_subtitle syscall; both pointers must be in app
+  //! memory.
+  bool (*app_glance_subtitle)(const Uuid *app_uuid, char *buffer, size_t buffer_size);
 } DrewOSInfo;
 
-_Static_assert(sizeof(DrewOSInfo) == 32, "DrewOSInfo is ABI");
+_Static_assert(sizeof(DrewOSInfo) == 36, "DrewOSInfo is ABI");
 
 const DrewOSInfo *drew_os_get_info(void);
