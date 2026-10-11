@@ -20,7 +20,7 @@
 
 #define DREW_OS_PROBE_CATEGORY 0x44524557 /* 'DREW' */
 #define DREW_OS_MAGIC          "DrewPebbleOS"
-#define DREW_OS_API_VERSION    3
+#define DREW_OS_API_VERSION    4
 
 //! Bits for DrewOSInfo.capabilities
 typedef enum {
@@ -28,6 +28,9 @@ typedef enum {
   DREW_OS_CAP_APP_WAKEUP = (1 << 0),
   //! app_glance_subtitle is available (api_version >= 3)
   DREW_OS_CAP_APP_GLANCE = (1 << 1),
+  //! The firmware can send Up/Down taps to the watchface, and watchface_buttons is
+  //! available (api_version >= 4)
+  DREW_OS_CAP_WATCHFACE_BUTTONS = (1 << 2),
 } DrewOSCapability;
 
 typedef struct DrewOSInfo {
@@ -58,8 +61,17 @@ typedef struct DrewOSInfo {
   //! sys_app_glance_get_current_subtitle syscall; both pointers must be in app
   //! memory.
   bool (*app_glance_subtitle)(const Uuid *app_uuid, char *buffer, size_t buffer_size);
+
+  // api_version >= 4
+
+  //! The buttons, as bits (1 << ButtonId), whose single press on the watchface is sent to
+  //! the running watchface's click handlers instead of Quick Launch: Settings -> Quick
+  //! Launch -> Tap Up / Tap Down -> "Send to watchface". Only BUTTON_ID_UP and
+  //! BUTTON_ID_DOWN can be set. Holds, combos, Select and Back always stay with the system.
+  //! Points at the sys_watchface_get_tap_buttons syscall.
+  uint32_t (*watchface_buttons)(void);
 } DrewOSInfo;
 
-_Static_assert(sizeof(DrewOSInfo) == 36, "DrewOSInfo is ABI");
+_Static_assert(sizeof(DrewOSInfo) == 40, "DrewOSInfo is ABI");
 
 const DrewOSInfo *drew_os_get_info(void);
