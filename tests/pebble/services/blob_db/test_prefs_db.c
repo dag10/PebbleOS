@@ -6,7 +6,9 @@
 #include <pbl/util/size.h>
 #include <pbl/util/uuid.h>
 
+#include <apps/system/quick_launch_watchface.h>
 #include <clar.h>
+#include <shell/normal/quick_launch.h>
 #include <shell/prefs.h>
 #include <shell/prefs_private.h>
 
@@ -166,4 +168,45 @@ void test_prefs_db__dark_mode_schedule(void) {
     shell_prefs_get_dark_mode_schedule(&read);
     cl_assert_equal_m(&read, &expected, sizeof(expected));
   }
+}
+
+// Mirrors QuickLaunchPreference in shell/normal/prefs.c, the record behind "qlSingleClick*".
+typedef struct {
+  bool enabled;
+  Uuid uuid;
+} TestQuickLaunchPreference;
+
+static void prv_insert_tap_pref(const char *key, bool enabled, const Uuid *uuid) {
+  const TestQuickLaunchPreference pref = {
+    .enabled = enabled,
+    .uuid = *uuid,
+  };
+  prv_insert_from_phone(key, &pref, sizeof(pref));
+}
+
+void test_prefs_db__quick_launch_tap_sent_to_watchface(void) {
+  const Uuid watchface_uuid = QUICK_LAUNCH_WATCHFACE_UUID;
+  const Uuid other_uuid = {0, 1, 2, 3};
+
+  // The defaults (Health / Timeline) keep both taps for the system.
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_UP));
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_DOWN));
+
+  // Up and Down are independent.
+  prv_insert_tap_pref("qlSingleClickUp", true, &watchface_uuid);
+  cl_assert(quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_UP));
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_DOWN));
+
+  prv_insert_tap_pref("qlSingleClickDown", true, &watchface_uuid);
+  cl_assert(quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_DOWN));
+
+  // A disabled binding, or one to anything else, keeps the tap for the system.
+  prv_insert_tap_pref("qlSingleClickUp", false, &watchface_uuid);
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_UP));
+  prv_insert_tap_pref("qlSingleClickDown", true, &other_uuid);
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_DOWN));
+
+  // Only Up and Down have taps.
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_SELECT));
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_BACK));
 }
