@@ -18,6 +18,7 @@
 #include <process_management/pebble_process_md.h>
 #include <shell/sdk/shell_sdk.h>
 #include <shell/system_app_state_machine.h>
+#include <syscall/syscall_internal.h>
 #include <system/passert.h>
 
 typedef struct WatchfaceData {
@@ -109,6 +110,11 @@ void watchface_handle_button_event(PebbleEvent *e) {
         break;
     }
   }
+}
+
+//! The SDK shell has no Quick Launch settings, so no tap goes to the watchface.
+DEFINE_SYSCALL(uint32_t, sys_watchface_get_tap_buttons, void) {
+  return 0;
 }
 
 void watchface_reset_click_manager(void) {
