@@ -697,6 +697,11 @@
       "md_fn": "quick_launch_nothing_get_app_info"
     },
     {
+      "id": -150,
+      "enum": "QUICK_LAUNCH_WATCHFACE",
+      "md_fn": "quick_launch_watchface_get_app_info"
+    },
+    {
       "id": -102,
       "enum": "TOUCH_TOGGLE",
       "md_fn": "touch_toggle_get_app_info",

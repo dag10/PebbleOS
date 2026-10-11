@@ -14,6 +14,7 @@
 #include "kernel/pbl_malloc.h"
 #include "pbl/services/i18n/i18n.h"
 #include "process_management/app_install_manager.h"
+#include "apps/system_app_ids.h"
 #include "apps/system/timeline/timeline.h"
 #include "process_management/app_menu_data_source.h"
 #include "shell/prefs.h"
@@ -68,6 +69,12 @@ static bool prv_app_filter_callback(struct AppMenuDataSource *source, AppInstall
       return false;
     }
   } else if (is_action || app_install_entry_is_hidden(entry)) {
+    return false;
+  }
+
+  // "Send to watchface" passes a single press on to the watchface; holds have no
+  // watchface counterpart, so it is a tap-only action.
+  if (!data->is_tap && (entry->install_id == APP_ID_QUICK_LAUNCH_WATCHFACE)) {
     return false;
   }
 
