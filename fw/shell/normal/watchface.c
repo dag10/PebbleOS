@@ -19,6 +19,7 @@
 #include <popups/timeline/peek.h>
 #include <process_management/app_manager.h>
 #include <process_management/pebble_process_md.h>
+#include <process_management/process_manager.h>
 #include <system/passert.h>
 
 #define QUICK_LAUNCH_HOLD_MS (400)
@@ -181,7 +182,9 @@ static void prv_launch_timeline_app(AppInstallId app_id, ButtonId button, AppLau
 static void prv_launch_quick_launch_app(AppInstallId app_id, ButtonId button,
                                         AppLaunchReason timeline_reason,
                                         AppQuickLaunchAction action) {
-  if ((app_id == INSTALL_ID_INVALID) || (app_id == APP_ID_QUICK_LAUNCH_NOTHING)) {
+  // "Send to watchface" is only meaningful for a tap; anywhere else it is inert.
+  if ((app_id == INSTALL_ID_INVALID) || (app_id == APP_ID_QUICK_LAUNCH_NOTHING) ||
+      (app_id == APP_ID_QUICK_LAUNCH_WATCHFACE)) {
     return;
   }
 
@@ -217,6 +220,22 @@ static void prv_quick_launch_handler(ClickRecognizerRef recognizer, void *data) 
                               APP_QUICK_LAUNCH_ACTION_HOLD);
 }
 
+//! Replay a tap the shell recognized as a button down and up on the watchface's own event
+//! queue, so the watchface's click config (window_single_click_subscribe() and friends) sees
+//! a short press. The real button events stay masked from the app, which is what keeps holds
+//! and the Up+Down / Back+Up combos working as Quick Launch gestures.
+static void prv_send_tap_to_watchface(ButtonId button) {
+  PebbleEvent e = {
+    .type = PEBBLE_BUTTON_DOWN_EVENT,
+    .button.button_id = button,
+  };
+  if (!process_manager_send_event_to_process(PebbleTask_App, &e)) {
+    return;
+  }
+  e.type = PEBBLE_BUTTON_UP_EVENT;
+  process_manager_send_event_to_process(PebbleTask_App, &e);
+}
+
 static void prv_launch_up_down(ClickRecognizerRef recognizer, void *data) {
   ButtonId button = click_recognizer_get_button_id(recognizer);
 
@@ -227,6 +246,11 @@ static void prv_launch_up_down(ClickRecognizerRef recognizer, void *data) {
   if (!quick_launch_single_click_is_enabled(button))
     return;
   const AppInstallId app_id = quick_launch_single_click_get_app(button);
+
+  if (app_id == APP_ID_QUICK_LAUNCH_WATCHFACE) {
+    prv_send_tap_to_watchface(button);
+    return;
+  }
 
   prv_launch_quick_launch_app(app_id, button, APP_LAUNCH_SYSTEM, APP_QUICK_LAUNCH_ACTION_TAP);
 }

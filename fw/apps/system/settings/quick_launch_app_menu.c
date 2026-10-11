@@ -15,6 +15,7 @@
 #include <applib/ui/app_window_stack.h>
 #include <applib/ui/option_menu_window.h>
 #include <apps/system/timeline/timeline.h>
+#include <apps/system_app_ids.h>
 #include <kernel/pbl_malloc.h>
 #include <process_management/app_install_manager.h>
 #include <process_management/app_menu_data_source.h>
@@ -70,6 +71,12 @@ static bool prv_app_filter_callback(struct AppMenuDataSource *source, AppInstall
       return false;
     }
   } else if (is_action || app_install_entry_is_hidden(entry)) {
+    return false;
+  }
+
+  // "Send to watchface" passes a single press on to the watchface; holds have no
+  // watchface counterpart, so it is a tap-only action.
+  if (!data->is_tap && (entry->install_id == APP_ID_QUICK_LAUNCH_WATCHFACE)) {
     return false;
   }
 
