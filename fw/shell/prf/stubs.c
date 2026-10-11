@@ -22,6 +22,7 @@
 #include "pbl/services/persist.h"
 #include "shell/prefs.h"
 #include "shell/system_theme.h"
+#include "syscall/syscall.h"
 
 void app_fetch_binaries(const Uuid *uuid, AppInstallId app_id, bool has_worker) {
 }
@@ -46,6 +47,10 @@ void watchface_set_default_install_id(AppInstallId id) {
 }
 
 void watchface_handle_button_event(PebbleEvent *e) {
+}
+
+uint32_t sys_watchface_get_tap_buttons(void) {
+  return 0;
 }
 
 void app_idle_timeout_refresh(void) {

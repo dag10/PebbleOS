@@ -10,10 +10,11 @@ static const DrewOSInfo s_drew_os_info = {
   .magic = DREW_OS_MAGIC,
   .api_version = DREW_OS_API_VERSION,
   .size = sizeof(DrewOSInfo),
-  .capabilities = DREW_OS_CAP_APP_WAKEUP | DREW_OS_CAP_APP_GLANCE,
+  .capabilities = DREW_OS_CAP_APP_WAKEUP | DREW_OS_CAP_APP_GLANCE | DREW_OS_CAP_WATCHFACE_BUTTONS,
   .fw_version = TINTIN_METADATA.version_tag,
   .app_next_wakeup = sys_wakeup_get_next_for_app,
   .app_glance_subtitle = sys_app_glance_get_current_subtitle,
+  .watchface_buttons = sys_watchface_get_tap_buttons,
 };
 
 const DrewOSInfo *drew_os_get_info(void) {
