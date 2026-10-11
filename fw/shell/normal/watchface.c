@@ -20,6 +20,7 @@
 #include <process_management/app_manager.h>
 #include <process_management/pebble_process_md.h>
 #include <process_management/process_manager.h>
+#include <syscall/syscall_internal.h>
 #include <system/passert.h>
 
 #define QUICK_LAUNCH_HOLD_MS (400)
@@ -253,6 +254,22 @@ static void prv_launch_up_down(ClickRecognizerRef recognizer, void *data) {
   }
 
   prv_launch_quick_launch_app(app_id, button, APP_LAUNCH_SYSTEM, APP_QUICK_LAUNCH_ACTION_TAP);
+}
+
+//! DrewPebbleOS extension: the buttons (bit 1 << ButtonId) whose single press on the
+//! watchface goes to the watchface instead of Quick Launch. Exposed to apps through
+//! DrewOSInfo.watchface_buttons.
+DEFINE_SYSCALL(uint32_t, sys_watchface_get_tap_buttons, void) {
+  // Compares the stored UUIDs rather than resolving install ids, which can mean an app
+  // database lookup, too much for the syscall stack.
+  uint32_t buttons = 0;
+  if (quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_UP)) {
+    buttons |= (1 << BUTTON_ID_UP);
+  }
+  if (quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_DOWN)) {
+    buttons |= (1 << BUTTON_ID_DOWN);
+  }
+  return buttons;
 }
 
 static void prv_configure_click_handler(ButtonId button_id, ClickHandler single_click_handler) {
