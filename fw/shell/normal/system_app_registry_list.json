@@ -703,11 +703,6 @@
       "ifdefs": [
         "CONFIG_TOUCH"
       ]
-    },
-    {
-      "id": -103,
-      "enum": "HELLO_WORLD",
-      "md_fn": "hello_world_get_app_info"
     }
   ],
   "resource_apps": [
