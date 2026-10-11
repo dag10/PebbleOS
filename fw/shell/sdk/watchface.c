@@ -4,6 +4,7 @@
 #include "watchface.h"
 
 #include <pbl/kernel/fatal.h>
+#include <pbl/kernel/syscall.h>
 #include <pbl/logging/logging.h>
 #include <pbl/services/analytics/analytics.h>
 #include <pbl/services/compositor/compositor_transitions.h>
@@ -109,6 +110,11 @@ void watchface_handle_button_event(PebbleEvent *e) {
         break;
     }
   }
+}
+
+//! The SDK shell has no Quick Launch settings, so no tap goes to the watchface.
+PBL_SYSCALL(uint32_t, sys_watchface_get_tap_buttons) {
+  return 0;
 }
 
 void watchface_reset_click_manager(void) {
