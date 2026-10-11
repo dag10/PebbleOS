@@ -13,6 +13,7 @@
 #include <pbl/util/units.h>
 
 #include <applib/graphics/gtypes.h>
+#include <apps/system/quick_launch_watchface.h>
 #include <apps/system/timeline/timeline.h>
 #include <apps/system/toggle/quiet_time.h>
 #include <board/board.h>
@@ -1803,6 +1804,22 @@ void quick_launch_single_click_set_enabled(ButtonId button, bool enabled) {
   }
   pref.enabled = enabled;
   prv_pref_set(key, &pref, sizeof(pref));
+}
+
+bool quick_launch_single_click_is_sent_to_watchface(ButtonId button) {
+  static const Uuid s_watchface_uuid = QUICK_LAUNCH_WATCHFACE_UUID;
+  const QuickLaunchPreference *pref = NULL;
+  switch (button) {
+    case BUTTON_ID_UP:
+      pref = &s_quick_launch_single_click_up;
+      break;
+    case BUTTON_ID_DOWN:
+      pref = &s_quick_launch_single_click_down;
+      break;
+    default:
+      return false;
+  }
+  return pref->enabled && uuid_equal(&pref->uuid, &s_watchface_uuid);
 }
 
 bool quick_launch_combo_back_up_is_enabled(void) {

@@ -5,7 +5,9 @@
 #include <pbl/services/filesystem/pfs.h>
 #include <pbl/util/uuid.h>
 
+#include <apps/system/quick_launch_watchface.h>
 #include <clar.h>
+#include <shell/normal/quick_launch.h>
 #include <shell/prefs.h>
 #include <shell/prefs_private.h>
 
@@ -122,4 +124,53 @@ void test_prefs_db__insert_and_read(void) {
   // Read it back
   cl_assert(prefs_db_read((uint8_t *)key, key_len, (uint8_t *)&get_value, sizeof(get_value) + 1) <
             0);
+}
+
+// Mirrors QuickLaunchPreference in shell/normal/prefs.c, the record behind "qlSingleClick*".
+typedef struct {
+  bool enabled;
+  Uuid uuid;
+} TestQuickLaunchPreference;
+
+static void prv_insert_tap_pref(const char *key, bool enabled, const Uuid *uuid) {
+  const TestQuickLaunchPreference pref = {
+    .enabled = enabled,
+    .uuid = *uuid,
+  };
+  const int key_len = strlen(key);
+  cl_assert_equal_i(prefs_db_insert((uint8_t *)key, key_len, (uint8_t *)&pref, sizeof(pref)), 0);
+  PebbleBlobDBEvent event = (PebbleBlobDBEvent){
+    .db_id = BlobDBIdPrefs,
+    .type = BlobDBEventTypeInsert,
+    .key = (uint8_t *)key,
+    .key_len = key_len,
+  };
+  prefs_private_handle_blob_db_event(&event);
+}
+
+void test_prefs_db__quick_launch_tap_sent_to_watchface(void) {
+  const Uuid watchface_uuid = QUICK_LAUNCH_WATCHFACE_UUID;
+  const Uuid other_uuid = {0, 1, 2, 3};
+
+  // The defaults (Health / Timeline) keep both taps for the system.
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_UP));
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_DOWN));
+
+  // Up and Down are independent.
+  prv_insert_tap_pref("qlSingleClickUp", true, &watchface_uuid);
+  cl_assert(quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_UP));
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_DOWN));
+
+  prv_insert_tap_pref("qlSingleClickDown", true, &watchface_uuid);
+  cl_assert(quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_DOWN));
+
+  // A disabled binding, or one to anything else, keeps the tap for the system.
+  prv_insert_tap_pref("qlSingleClickUp", false, &watchface_uuid);
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_UP));
+  prv_insert_tap_pref("qlSingleClickDown", true, &other_uuid);
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_DOWN));
+
+  // Only Up and Down have taps.
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_SELECT));
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_BACK));
 }
