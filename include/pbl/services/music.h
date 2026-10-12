@@ -264,4 +264,27 @@ const struct GBitmap *music_album_art_lock(void);
 /** @brief Release the album art borrowed with music_album_art_lock(). */
 void music_album_art_unlock(void);
 
+/** @brief Now-playing snapshot, as copied by sys_music_get_now_playing_info(). */
+typedef struct MusicNowPlayingInfo {
+  /** Track title, NUL terminated, empty if unknown. */
+  char title[MUSIC_BUFFER_LENGTH];
+  /** Track artist, NUL terminated, empty if unknown. */
+  char artist[MUSIC_BUFFER_LENGTH];
+  /** Track album, NUL terminated, empty if unknown. */
+  char album[MUSIC_BUFFER_LENGTH];
+  /** A #MusicPlayState; #MusicPlayStateUnknown if the backend does not report it. */
+  uint8_t playback_state;
+  uint8_t reserved[3];
+} MusicNowPlayingInfo;
+
+/**
+ * @brief DrewPebbleOS extension: copy the current track and playback state for an app.
+ *
+ * A syscall, so unprivileged apps (e.g. a watchface) may call it; @p out must be in app memory.
+ *
+ * @param[out] out Snapshot, zeroed when there is no track.
+ * @return True if a title or an artist is known (as music_has_now_playing()).
+ */
+bool sys_music_get_now_playing_info(MusicNowPlayingInfo *out);
+
 /** @} */
