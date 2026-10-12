@@ -24,6 +24,7 @@
 
 #include <applib/health_service.h>
 #include <kernel/events.h>
+#include <process_management/app_manager.h>
 #include <syscall/syscall.h>
 
 PBL_LOG_MODULE_DEFINE(service_hrm, CONFIG_SERVICE_HRM_LOG_LEVEL);
@@ -318,6 +319,7 @@ static bool prv_sensor_enable(HRMFeature features, bool low_latency) {
   s_manager_state.enable_failure_count = 0;
   s_manager_state.active_features = features;
   s_manager_state.enabled_features = features;
+  s_manager_state.low_latency_active = low_latency;
   s_manager_state.sensor_on_since_ticks = pbl_uptime_ticks();
   s_manager_state.unserved_timeout_logged = false;
   // Re-apply the current activity scene so a sensor power-cycle never drops back to the default
@@ -335,6 +337,7 @@ static void prv_sensor_disable(void) {
   PBL_ANALYTICS_TIMER_STOP(hrm_on_time_ms);
   s_manager_state.active_features = 0;
   s_manager_state.enabled_features = (HRMFeature)0;
+  s_manager_state.low_latency_active = false;
   s_manager_state.sensor_on_since_ticks = 0;
 
   if (s_manager_state.accel_state) {
@@ -472,9 +475,12 @@ static void prv_update_hrm_enable_system_cb(void *unused) {
         PBL_LOG_DBG("Turning on HR sensor (features 0x%x)", active_features);
         prv_sensor_enable(active_features, low_latency_wanted);
       } else if (prv_should_reconfigure(active_features, s_manager_state.active_features,
-                                        live_features)) {
-        // Restart when the optical path changes (HR <-> SpO2) or the running feature set no longer
-        // fits the subscribers. Both need a fresh hrm_enable with the new set.
+                                        live_features) ||
+                 (low_latency_wanted && !s_manager_state.low_latency_active)) {
+        // Restart when the optical path changes (HR <-> SpO2), the running feature set no longer
+        // fits the subscribers, or a live consumer needs the low-latency cadence the running
+        // session lacks (else it gets batched samples for as long as it keeps the sensor on).
+        // All need a fresh hrm_enable.
         PBL_LOG_DBG("Restarting HR sensor (0x%x -> 0x%x)", s_manager_state.active_features,
                     active_features);
         prv_sensor_disable();
@@ -672,6 +678,23 @@ PBL_T_STATIC void prv_charger_event_cb(PebbleEvent *e, void *context) {
 }
 
 // Accept new data from the HR device driver.
+//! The HRMLatestBPM quality grade for a sample: -1 off-wrist, else 0 (worst) to 4 (excellent),
+//! from the confidence with the bands protobuf_log_hr_quality() uses.
+static int8_t prv_latest_bpm_quality(uint8_t confidence, bool off_wrist) {
+  if (off_wrist) {
+    return -1;
+  } else if (confidence >= 90) {
+    return 4;
+  } else if (confidence >= HRM_CONFIDENCE_HIGH) {
+    return 3;
+  } else if (confidence >= 60) {
+    return 2;
+  } else if (confidence >= 40) {
+    return 1;
+  }
+  return 0;
+}
+
 void hrm_manager_new_data_cb(const HRMData *data) {
   bool update = false;
   pbl_mutex_lock(&s_manager_state.lock, PBL_FOREVER);
@@ -690,6 +713,14 @@ void hrm_manager_new_data_cb(const HRMData *data) {
   }
   if (data->features & HRMFeature_SpO2) {
     HRM_LOG("  SpO2: %" PRIu8 ", Confidence: %" PRIu8, data->spo2_percent, data->spo2_confidence);
+  }
+
+  if (data->features & HRMFeature_BPM) {
+    s_manager_state.latest_bpm = (HRMLatestBPM){
+      .time_utc = (uint32_t)pbl_realtime(),
+      .bpm = data->off_wrist ? 0 : data->hrm_bpm,
+      .quality = prv_latest_bpm_quality(data->hrm_confidence, data->off_wrist),
+    };
   }
 
 #ifdef CONFIG_HRM_HRV
@@ -1032,6 +1063,57 @@ PBL_SYSCALL(bool, sys_hrm_manager_set_update_interval, (VAL, HRMSessionRef, sess
     pbl_sys_work_call(prv_update_hrm_enable_system_cb, nullptr);
   }
   return success;
+}
+
+PBL_SYSCALL(bool, sys_hrm_manager_app_request, (VAL, uint16_t, interval_s), (VAL, uint16_t, expire_s),
+            (VAL, bool, hrv)) {
+  if (pebble_task_get_current() != PebbleTask_App) {
+    return false;
+  }
+  const AppInstallId app_id = app_manager_get_current_app_id();
+  if (app_id == INSTALL_ID_INVALID) {
+    return false;
+  }
+  const bool clear = (interval_s == 0);
+  // Gated on the heart rate pref like the health service (the manager exempts foreground apps
+  // from the pref mask). Always bounded: expire_s is what makes the request safe to forget.
+  const bool active = !clear && (expire_s != 0) && activity_prefs_heart_rate_is_enabled();
+  HRMFeature features = HRMFeature_BPM;
+#ifdef CONFIG_HRM_HRV
+  if (hrv) {
+    features |= HRMFeature_HRV;
+  }
+#endif
+  const bool low_latency = prv_wants_low_latency(PebbleTask_App, interval_s);
+
+  pbl_mutex_lock(&s_manager_state.lock, PBL_FOREVER);
+  HRMSubscriberState *state = prv_get_subscriber_state_from_app_id(PebbleTask_App, app_id);
+  if (state && active) {
+    // Renew in place, keeping the served timestamp, so a refresh never restarts anything.
+    state->update_interval_s = interval_s;
+    state->expire_utc = pbl_realtime() + expire_s;
+    state->sent_expiration_event = false;
+    state->low_latency = low_latency;
+    state->features = features;
+  } else if (state) {
+    prv_remove_and_free_subscription(state);
+  }
+  pbl_mutex_unlock(&s_manager_state.lock);
+
+  if (!state && active) {
+    hrm_manager_subscribe_with_callback(app_id, interval_s, expire_s, features, low_latency, NULL,
+                                        NULL);
+  } else {
+    pbl_sys_work_call(prv_update_hrm_enable_system_cb, NULL);
+  }
+  return active || clear;
+}
+
+PBL_SYSCALL(bool, sys_hrm_manager_get_latest_bpm, (OUT, HRMLatestBPM *, out)) {
+  pbl_mutex_lock(&s_manager_state.lock, PBL_FOREVER);
+  *out = s_manager_state.latest_bpm;
+  pbl_mutex_unlock(&s_manager_state.lock);
+  return out->time_utc != 0;
 }
 
 void hrm_manager_enable(bool on) {
