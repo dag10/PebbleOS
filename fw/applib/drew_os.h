@@ -20,7 +20,7 @@
 
 #define DREW_OS_PROBE_CATEGORY 0x44524557 /* 'DREW' */
 #define DREW_OS_MAGIC          "DrewPebbleOS"
-#define DREW_OS_API_VERSION    5
+#define DREW_OS_API_VERSION    6
 
 //! Bits for DrewOSInfo.capabilities
 typedef enum {
@@ -34,6 +34,8 @@ typedef enum {
   //! The watch has a heart rate sensor, and hr_request / hr_latest are available
   //! (api_version >= 5)
   DREW_OS_CAP_HEART_RATE = (1 << 3),
+  //! music_now_playing is available (api_version >= 6)
+  DREW_OS_CAP_MUSIC = (1 << 4),
 } DrewOSCapability;
 
 //! Latest heart rate sample, as returned by DrewOSInfo.hr_latest. Same layout as the firmware's
@@ -47,6 +49,20 @@ typedef struct DrewOSHRSample {
   int8_t quality;
   uint16_t reserved;
 } DrewOSHRSample;
+
+//! Current track, as returned by DrewOSInfo.music_now_playing. Same layout as the firmware's
+//! MusicNowPlayingInfo.
+typedef struct DrewOSNowPlaying {
+  //! Track title, NUL terminated, empty if unknown
+  char title[64];
+  //! Track artist, NUL terminated, empty if unknown
+  char artist[64];
+  //! Track album, NUL terminated, empty if unknown
+  char album[64];
+  //! MusicPlayState: 0 unknown (not reported), 1 playing, 2 paused, 3 forwarding, 4 rewinding
+  uint8_t playback_state;
+  uint8_t reserved[3];
+} DrewOSNowPlaying;
 
 typedef struct DrewOSInfo {
   //! DREW_OS_MAGIC, NUL padded
@@ -98,9 +114,17 @@ typedef struct DrewOSInfo {
   //! none since boot. Points at the sys_hrm_manager_get_latest_bpm syscall; @p out must be in
   //! app memory.
   bool (*hr_latest)(DrewOSHRSample *out);
+
+  // api_version >= 6, NULL without DREW_OS_CAP_MUSIC
+
+  //! Copies the current track (as the Music app shows it) and the playback state. Returns false,
+  //! with @p out zeroed, if no title or artist is known. Points at the
+  //! sys_music_get_now_playing_info syscall; @p out must be in app memory.
+  bool (*music_now_playing)(DrewOSNowPlaying *out);
 } DrewOSInfo;
 
-_Static_assert(sizeof(DrewOSInfo) == 48, "DrewOSInfo is ABI");
+_Static_assert(sizeof(DrewOSInfo) == 52, "DrewOSInfo is ABI");
+_Static_assert(sizeof(DrewOSNowPlaying) == 196, "DrewOSNowPlaying is ABI");
 _Static_assert(sizeof(DrewOSHRSample) == 8, "DrewOSHRSample is ABI");
 
 const DrewOSInfo *drew_os_get_info(void);
