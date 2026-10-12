@@ -1178,3 +1178,114 @@ void test_hrm_manager__immediate_off_wrist(void) {
 
   sys_hrm_manager_unsubscribe(session_ref);
 }
+
+// The DrewPebbleOS request is the foreground app's own bounded subscription: renewed in place,
+// lapsing on its own, and gated on the heart rate pref.
+void test_hrm_manager__app_request(void) {
+  stub_pebble_tasks_set_current(PebbleTask_App);
+  s_app_install_id = 7;
+
+  cl_assert_equal_b(sys_hrm_manager_app_request(1, 300, false), true);
+  fake_system_task_callbacks_invoke_pending();
+  HRMSubscriberState *state = prv_get_subscriber_state_from_app_id(PebbleTask_App, 7);
+  cl_assert(state);
+  const HRMSessionRef ref = state->session_ref;
+  cl_assert_equal_i(state->expire_utc, rtc_get_time() + 300);
+  cl_assert_equal_i(state->features, HRMFeature_BPM);
+  cl_assert_equal_b(hrm_is_enabled(HRM), true);
+  cl_assert_equal_b(s_hrm_state.low_latency, true);
+
+  // A renewal extends the same subscription
+  fake_rtc_increment_time(60);
+  cl_assert_equal_b(sys_hrm_manager_app_request(1, 300, false), true);
+  state = prv_get_subscriber_state_from_app_id(PebbleTask_App, 7);
+  cl_assert_equal_i(state->session_ref, ref);
+  cl_assert_equal_i(state->expire_utc, rtc_get_time() + 300);
+
+  // App exit doesn't lengthen it
+  hrm_manager_process_cleanup(PebbleTask_App, 7);
+  cl_assert_equal_i(state->expire_utc, rtc_get_time() + 300);
+
+  // Unbounded requests are refused
+  cl_assert_equal_b(sys_hrm_manager_app_request(1, 0, false), false);
+
+  // Turning the pref off refuses the renewal and drops the request
+  s_activity_prefs_heart_rate_is_enabled = false;
+  cl_assert_equal_b(sys_hrm_manager_app_request(1, 300, false), false);
+  cl_assert(!prv_get_subscriber_state_from_app_id(PebbleTask_App, 7));
+  s_activity_prefs_heart_rate_is_enabled = true;
+
+  // 0 clears it
+  cl_assert_equal_b(sys_hrm_manager_app_request(1, 300, false), true);
+  cl_assert_equal_b(sys_hrm_manager_app_request(0, 0, false), true);
+  cl_assert(!prv_get_subscriber_state_from_app_id(PebbleTask_App, 7));
+  fake_system_task_callbacks_invoke_pending();
+  cl_assert_equal_b(hrm_is_enabled(HRM), false);
+
+  // Only the foreground app may use it
+  stub_pebble_tasks_set_current(PebbleTask_Worker);
+  cl_assert_equal_b(sys_hrm_manager_app_request(1, 300, false), false);
+  stub_pebble_tasks_set_current(PebbleTask_App);
+  s_app_install_id = INSTALL_ID_INVALID;
+}
+
+// A live consumer arriving while the sensor runs on the batched cadence restarts it once on the
+// low-latency cadence, instead of getting batches for as long as it keeps the sensor on.
+void test_hrm_manager__low_latency_upgrades_running_sensor(void) {
+  stub_pebble_tasks_set_current(PebbleTask_KernelBackground);
+  HRMSessionRef bg_ref = hrm_manager_subscribe_with_callback(
+      INSTALL_ID_INVALID, 1, 0, HRMFeature_BPM, false /*low_latency*/, prv_fake_hrm_1_cb, NULL);
+  fake_system_task_callbacks_invoke_pending();
+  cl_assert_equal_b(s_hrm_state.low_latency, false);
+  cl_assert_equal_i(s_hrm_state.enable_count, 1);
+
+  stub_pebble_tasks_set_current(PebbleTask_App);
+  s_app_install_id = 7;
+  cl_assert_equal_b(sys_hrm_manager_app_request(1, 300, false), true);
+  fake_system_task_callbacks_invoke_pending();
+  cl_assert_equal_b(s_hrm_state.low_latency, true);
+  cl_assert_equal_i(s_hrm_state.enable_count, 2);
+
+  // Further passes leave it running
+  prv_fake_send_new_data();
+  prv_fake_send_new_data();
+  prv_fake_send_new_data();
+  fake_system_task_callbacks_invoke_pending();
+  cl_assert_equal_i(s_hrm_state.enable_count, 2);
+
+  cl_assert_equal_b(sys_hrm_manager_app_request(0, 0, false), true);
+  sys_hrm_manager_unsubscribe(bg_ref);
+  fake_system_task_callbacks_invoke_pending();
+  s_app_install_id = INSTALL_ID_INVALID;
+}
+
+void test_hrm_manager__latest_bpm(void) {
+  HRMLatestBPM latest;
+  cl_assert_equal_b(sys_hrm_manager_get_latest_bpm(&latest), false);
+
+  stub_pebble_tasks_set_current(PebbleTask_KernelBackground);
+  HRMSessionRef ref = hrm_manager_subscribe_with_callback(
+      INSTALL_ID_INVALID, 1, 0, HRMFeature_BPM, false /*low_latency*/, prv_fake_hrm_1_cb, NULL);
+  fake_system_task_callbacks_invoke_pending();
+  prv_fake_send_new_data();
+  cl_assert_equal_b(sys_hrm_manager_get_latest_bpm(&latest), true);
+  cl_assert_equal_i(latest.time_utc, rtc_get_time());
+  cl_assert_equal_i(latest.bpm, 82);
+  cl_assert_equal_i(latest.quality, HRMQuality_Excellent);
+
+  // Off-wrist reports no BPM
+  fake_rtc_increment_time(2);
+  const HRMData off_wrist = {
+    .features = HRMFeature_BPM,
+    .hrm_bpm = 70,
+    .hrm_quality = HRMQuality_OffWrist,
+  };
+  hrm_manager_new_data_cb(&off_wrist);
+  cl_assert_equal_b(sys_hrm_manager_get_latest_bpm(&latest), true);
+  cl_assert_equal_i(latest.time_utc, rtc_get_time());
+  cl_assert_equal_i(latest.bpm, 0);
+  cl_assert_equal_i(latest.quality, HRMQuality_OffWrist);
+
+  sys_hrm_manager_unsubscribe(ref);
+  fake_system_task_callbacks_invoke_pending();
+}

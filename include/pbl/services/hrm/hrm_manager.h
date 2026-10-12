@@ -233,6 +233,42 @@ bool sys_hrm_manager_get_subscription_info(HRMSessionRef session, AppInstallId *
                                            HRMFeature *features);
 
 /**
+ * @brief DrewPebbleOS extension: set or clear the foreground app's own sensor request.
+ *
+ * Unlike the health service sample period, the request always carries an expiration, and app
+ * exit never lengthens it, so an app that stops renewing it (switched views, exited, crashed)
+ * releases the sensor within @p expire_s. Shares the app's single subscription with the health
+ * service sample periods, so don't use both. Only for @c PebbleTask_App.
+ *
+ * @param interval_s Requested update interval, in seconds; 0 clears the request.
+ * @param expire_s Seconds from now after which the request lapses, must not be 0.
+ * @param hrv Also sample HRV, delivered as @c HealthEventHRVUpdate health events.
+ * @return true if the request is now active (or was cleared); false if the heart rate pref is
+ *         off (an existing request is then cleared), the arguments are bad or the caller isn't
+ *         the foreground app.
+ */
+bool sys_hrm_manager_app_request(uint16_t interval_s, uint16_t expire_s, bool hrv);
+
+/** @brief Latest heart rate sample from the sensor, whoever asked for it. ABI for apps. */
+typedef struct HRMLatestBPM {
+  /** When the sample arrived (UTC seconds), 0 if there was none since boot. */
+  uint32_t time_utc;
+  /** Beats per minute, 0 when off-wrist or implausible. */
+  uint8_t bpm;
+  /** @ref HRMQuality of the sample. */
+  int8_t quality;
+  uint16_t reserved;
+} HRMLatestBPM;
+
+/**
+ * @brief DrewPebbleOS extension: get the latest heart rate sample.
+ *
+ * @param[out] out Sample, must be in the caller's memory.
+ * @return true if there was a sample since boot.
+ */
+bool sys_hrm_manager_get_latest_bpm(HRMLatestBPM *out);
+
+/**
  * @brief Check whether a heart rate monitor is present and accessible.
  *
  * @return true if the HRM service is built in (@c CONFIG_SERVICE_HRM).
