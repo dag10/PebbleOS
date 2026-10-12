@@ -20,7 +20,7 @@
 
 #define DREW_OS_PROBE_CATEGORY 0x44524557 /* 'DREW' */
 #define DREW_OS_MAGIC          "DrewPebbleOS"
-#define DREW_OS_API_VERSION    4
+#define DREW_OS_API_VERSION    5
 
 //! Bits for DrewOSInfo.capabilities
 typedef enum {
@@ -31,7 +31,22 @@ typedef enum {
   //! The firmware can send Up/Down taps to the watchface, and watchface_buttons is
   //! available (api_version >= 4)
   DREW_OS_CAP_WATCHFACE_BUTTONS = (1 << 2),
+  //! The watch has a heart rate sensor, and hr_request / hr_latest are available
+  //! (api_version >= 5)
+  DREW_OS_CAP_HEART_RATE = (1 << 3),
 } DrewOSCapability;
+
+//! Latest heart rate sample, as returned by DrewOSInfo.hr_latest. Same layout as the firmware's
+//! HRMLatestBPM.
+typedef struct DrewOSHRSample {
+  //! When the sample arrived (UTC seconds), 0 if there was none since boot
+  uint32_t time_utc;
+  //! Beats per minute, 0 when off-wrist or implausible
+  uint8_t bpm;
+  //! HRMQuality: -1 off-wrist, 0 worst, 1 poor, 2 acceptable, 3 good, 4 excellent
+  int8_t quality;
+  uint16_t reserved;
+} DrewOSHRSample;
 
 typedef struct DrewOSInfo {
   //! DREW_OS_MAGIC, NUL padded
@@ -70,8 +85,22 @@ typedef struct DrewOSInfo {
   //! BUTTON_ID_DOWN can be set. Holds, combos, Select and Back always stay with the system.
   //! Points at the sys_watchface_get_tap_buttons syscall.
   uint32_t (*watchface_buttons)(void);
+
+  // api_version >= 5, NULL without DREW_OS_CAP_HEART_RATE
+
+  //! Sets the foreground app's own heart rate sensor request: sample every @p interval_s
+  //! seconds (1 or 2 gets the low-latency ~1 s cadence), with HRV events too if @p hrv, until
+  //! @p expire_s seconds from now unless renewed. App exit never extends it. 0 clears it.
+  //! Returns false if the heart rate pref is off. Points at the sys_hrm_manager_app_request
+  //! syscall.
+  bool (*hr_request)(uint16_t interval_s, uint16_t expire_s, bool hrv);
+  //! Copies the latest heart rate sample, whoever asked for it. Returns false if there was
+  //! none since boot. Points at the sys_hrm_manager_get_latest_bpm syscall; @p out must be in
+  //! app memory.
+  bool (*hr_latest)(DrewOSHRSample *out);
 } DrewOSInfo;
 
-_Static_assert(sizeof(DrewOSInfo) == 40, "DrewOSInfo is ABI");
+_Static_assert(sizeof(DrewOSInfo) == 48, "DrewOSInfo is ABI");
+_Static_assert(sizeof(DrewOSHRSample) == 8, "DrewOSHRSample is ABI");
 
 const DrewOSInfo *drew_os_get_info(void);
