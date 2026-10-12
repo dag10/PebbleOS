@@ -182,6 +182,12 @@ struct HRMManagerState {
    */
   HRMFeature active_features;
 
+  /** The running sensor drains its FIFO on the low-latency cadence. */
+  bool low_latency_active;
+
+  /** Latest heart rate sample, for sys_hrm_manager_get_latest_bpm(). */
+  HRMLatestBPM latest_bpm;
+
   /** Activity scene for the heart rate algorithm, re-applied at every sensor power on. */
   HRMActivityScene activity_scene;
 };
