@@ -3,6 +3,7 @@
 
 #include <pbl/drivers/rtc.h>
 #include <pbl/kernel/mutex.h>
+#include <pbl/kernel/syscall.h>
 #include <pbl/kernel/types.h>
 #include <pbl/logging/logging.h>
 #include <pbl/services/imaging.h>
@@ -365,6 +366,26 @@ bool music_get_player_name(char *player_name_out) {
   pbl_mutex_unlock(&s_music_ctx.mutex);
 
   return has_player_name;
+}
+
+//! DrewPebbleOS extension: the Music app shows the same, so it reveals nothing new.
+PBL_SYSCALL(bool, sys_music_get_now_playing_info, (VAL, MusicNowPlayingInfo *, out)) {
+  if (from_user) {
+    pbl_syscall_verify_user(out, sizeof(*out));
+  }
+  // Takes the lock itself, so ask before taking it here.
+  const bool state_supported = music_is_playback_state_reporting_supported();
+  memset(out, 0, sizeof(*out));
+  pbl_mutex_lock(&s_music_ctx.mutex, PBL_FOREVER);
+  const bool has_now_playing = (s_music_ctx.title[0] != 0 || s_music_ctx.artist[0] != 0);
+  if (has_now_playing) {
+    strcpy(out->title, s_music_ctx.title);
+    strcpy(out->artist, s_music_ctx.artist);
+    strcpy(out->album, s_music_ctx.album);
+    out->playback_state = state_supported ? s_music_ctx.playback_state : MusicPlayStateUnknown;
+  }
+  pbl_mutex_unlock(&s_music_ctx.mutex);
+  return has_now_playing;
 }
 
 bool music_has_now_playing(void) {
