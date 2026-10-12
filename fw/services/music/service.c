@@ -13,6 +13,7 @@
 #include <apps/system/music.h>
 #include <kernel/events.h>
 #include <kernel/pbl_malloc.h>
+#include <syscall/syscall_internal.h>
 
 PBL_LOG_MODULE_DEFINE(service_music, CONFIG_SERVICE_MUSIC_LOG_LEVEL);
 
@@ -365,6 +366,26 @@ bool music_get_player_name(char *player_name_out) {
   pbl_mutex_unlock(&s_music_ctx.mutex);
 
   return has_player_name;
+}
+
+//! DrewPebbleOS extension: the Music app shows the same, so it reveals nothing new.
+DEFINE_SYSCALL(bool, sys_music_get_now_playing_info, MusicNowPlayingInfo *out) {
+  if (PRIVILEGE_WAS_ELEVATED) {
+    syscall_assert_userspace_buffer(out, sizeof(*out));
+  }
+  // Takes the lock itself, so ask before taking it here.
+  const bool state_supported = music_is_playback_state_reporting_supported();
+  memset(out, 0, sizeof(*out));
+  pbl_mutex_lock(&s_music_ctx.mutex, PBL_FOREVER);
+  const bool has_now_playing = (s_music_ctx.title[0] != 0 || s_music_ctx.artist[0] != 0);
+  if (has_now_playing) {
+    strcpy(out->title, s_music_ctx.title);
+    strcpy(out->artist, s_music_ctx.artist);
+    strcpy(out->album, s_music_ctx.album);
+    out->playback_state = state_supported ? s_music_ctx.playback_state : MusicPlayStateUnknown;
+  }
+  pbl_mutex_unlock(&s_music_ctx.mutex);
+  return has_now_playing;
 }
 
 bool music_has_now_playing(void) {
