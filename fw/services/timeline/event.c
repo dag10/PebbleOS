@@ -12,6 +12,7 @@
 #include <pbl/services/system_task.h>
 #include <pbl/services/time.h>
 #include <pbl/services/timeline/calendar.h>
+#include <pbl/services/timeline/drew_calendar.h>
 #include <pbl/services/timeline/event.h>
 #include <pbl/services/timeline/peek.h>
 #include <pbl/util/units.h>
@@ -31,6 +32,7 @@ typedef struct TimelineEventState {
 static TimelineEventImplGetter s_services[TimelineEventServiceCount] = {
   [TimelineEventService_Calendar] = calendar_get_event_service,
   [TimelineEventService_Peek] = timeline_peek_get_event_service,
+  [TimelineEventService_DrewCalendar] = drew_calendar_get_event_service,
 };
 
 // This mutex protects all state, but is only used for factory resetting synchronously, therefore
