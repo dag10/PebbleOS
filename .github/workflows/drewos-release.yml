@@ -106,6 +106,8 @@ jobs:
                   if fw["versionTag"] != tag or fw["slot"] != slot:
                       sys.exit(f"slot{slot}/manifest.json does not match {tag}, slot {slot}")
           PY
+          # Fixed name for the releases/latest/download/ URL.
+          cp "$pbz" release/DrewOS-obelix.pbz
           ls -l release
 
       - name: Write release notes
@@ -129,3 +131,4 @@ jobs:
           name: ${{ env.TAG }}
           body_path: release-notes.md
           files: release/*.pbz
+          make_latest: true
