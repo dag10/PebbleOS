@@ -110,13 +110,17 @@ static void prv_app_button_down_handler(PebbleEvent *e, void *context) {
 
   if (e->button.button_id == BUTTON_ID_BACK &&
       !app_window_stack_get_top_window()->overrides_back_button) {
-    // a transition of NULL means we will use the stored pop transition for this stack item
-    window_stack_pop_with_transition(app_window_stack, nullptr /* transition */);
+    // A Back the shell replays to the watchface is for the face's own handler; without one it
+    // must not pop (and so exit) the watchface.
+    if (!e->button.is_replayed) {
+      // a transition of NULL means we will use the stored pop transition for this stack item
+      window_stack_pop_with_transition(app_window_stack, nullptr /* transition */);
+    }
     return;
   }
 
-  click_recognizer_handle_button_down(
-      &app_state_get_click_manager()->recognizers[e->button.button_id]);
+  click_recognizer_handle_button_down_held(
+      &app_state_get_click_manager()->recognizers[e->button.button_id], e->button.held_ms);
 }
 
 static void prv_app_button_up_handler(PebbleEvent *e, void *context) {
