@@ -35,8 +35,10 @@ typedef enum {
   ROW_HOLD_SELECT,
   ROW_HOLD_DOWN,
   ROW_HOLD_BACK,
-  ROW_SQUEEZE_BACK_UP,
-  ROW_SQUEEZE_BACK_DOWN,
+  ROW_TAP_BACK_UP,
+  ROW_TAP_BACK_DOWN,
+  ROW_DOUBLE_TAP_BACK_UP,
+  ROW_DOUBLE_TAP_BACK_DOWN,
 
   NUM_ROWS,
 } QuickLaunchRow;
@@ -54,8 +56,10 @@ static const QuickLaunchBinding s_row_bindings[NUM_ROWS] = {
   [ROW_HOLD_SELECT] = {QuickLaunchGestureHold, BUTTON_ID_SELECT},
   [ROW_HOLD_DOWN] = {QuickLaunchGestureHold, BUTTON_ID_DOWN},
   [ROW_HOLD_BACK] = {QuickLaunchGestureHold, BUTTON_ID_BACK},
-  [ROW_SQUEEZE_BACK_UP] = {QuickLaunchGestureSqueeze, BUTTON_ID_UP},
-  [ROW_SQUEEZE_BACK_DOWN] = {QuickLaunchGestureSqueeze, BUTTON_ID_DOWN},
+  [ROW_TAP_BACK_UP] = {QuickLaunchGestureComboTap, BUTTON_ID_UP},
+  [ROW_TAP_BACK_DOWN] = {QuickLaunchGestureComboTap, BUTTON_ID_DOWN},
+  [ROW_DOUBLE_TAP_BACK_UP] = {QuickLaunchGestureComboDoubleTap, BUTTON_ID_UP},
+  [ROW_DOUBLE_TAP_BACK_DOWN] = {QuickLaunchGestureComboDoubleTap, BUTTON_ID_DOWN},
 };
 
 typedef enum {
@@ -87,11 +91,17 @@ static const char *s_row_titles[NUM_ROWS] = {
   [ROW_HOLD_DOWN] = i18n_noop("Hold Down"),
   /// Shown in Quick Launch Settings as the title of the hold back button quick launch option.
   [ROW_HOLD_BACK] = i18n_noop("Hold Back"),
-  /// Shown in Quick Launch Settings as the title of the option for pressing back and up together.
-  [ROW_SQUEEZE_BACK_UP] = i18n_noop("Squeeze Back+Up"),
-  /// Shown in Quick Launch Settings as the title of the option for pressing back and down
+  /// Shown in Quick Launch Settings as the title of the option for tapping back and up together.
+  [ROW_TAP_BACK_UP] = i18n_noop("Tap Back+Up"),
+  /// Shown in Quick Launch Settings as the title of the option for tapping back and down
   /// together.
-  [ROW_SQUEEZE_BACK_DOWN] = i18n_noop("Squeeze Back+Down"),
+  [ROW_TAP_BACK_DOWN] = i18n_noop("Tap Back+Down"),
+  /// Shown in Quick Launch Settings as the title of the option for tapping back and up together
+  /// twice in a row.
+  [ROW_DOUBLE_TAP_BACK_UP] = i18n_noop("Double Tap Back+Up"),
+  /// Shown in Quick Launch Settings as the title of the option for tapping back and down
+  /// together twice in a row.
+  [ROW_DOUBLE_TAP_BACK_DOWN] = i18n_noop("Double Tap Back+Down"),
 };
 
 static const char *s_category_row_titles[CategoryRowCount] = {

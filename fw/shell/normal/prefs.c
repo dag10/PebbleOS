@@ -228,8 +228,12 @@ static QuickLaunchPreference s_quick_launch_back = {
 #define PREF_KEY_QUICK_LAUNCH_SINGLE_CLICK_BACK "qlSingleClickBack"
 #define PREF_KEY_QUICK_LAUNCH_COMBO_BACK_UP     "qlComboBackUp"
 #define PREF_KEY_QUICK_LAUNCH_COMBO_UP_DOWN     "qlComboUpDown"
-#define PREF_KEY_QUICK_LAUNCH_SQUEEZE_BACK_UP   "qlSqueezeBackUp"
-#define PREF_KEY_QUICK_LAUNCH_SQUEEZE_BACK_DOWN "qlSqueezeBackDown"
+// Tap Back+Up/Down keep the keys of the Squeeze gestures they replaced, so their
+// assignments carry over.
+#define PREF_KEY_QUICK_LAUNCH_TAP_BACK_UP          "qlSqueezeBackUp"
+#define PREF_KEY_QUICK_LAUNCH_TAP_BACK_DOWN        "qlSqueezeBackDown"
+#define PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_UP   "qlDoubleTapBackUp"
+#define PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_DOWN "qlDoubleTapBackDown"
 
 static QuickLaunchPreference s_quick_launch_single_click_up = {
   .enabled = true,
@@ -257,12 +261,22 @@ static QuickLaunchPreference s_quick_launch_combo_up_down = {
   .uuid = UUID_INVALID_INIT,
 };
 
-static QuickLaunchPreference s_quick_launch_squeeze_back_up = {
+static QuickLaunchPreference s_quick_launch_tap_back_up = {
   .enabled = false,
   .uuid = UUID_INVALID_INIT,
 };
 
-static QuickLaunchPreference s_quick_launch_squeeze_back_down = {
+static QuickLaunchPreference s_quick_launch_tap_back_down = {
+  .enabled = false,
+  .uuid = UUID_INVALID_INIT,
+};
+
+static QuickLaunchPreference s_quick_launch_double_tap_back_up = {
+  .enabled = false,
+  .uuid = UUID_INVALID_INIT,
+};
+
+static QuickLaunchPreference s_quick_launch_double_tap_back_down = {
   .enabled = false,
   .uuid = UUID_INVALID_INIT,
 };
@@ -703,15 +717,27 @@ static bool prv_set_s_quick_launch_combo_up_down(QuickLaunchPreference *pref) {
   return true;
 }
 
-static bool prv_set_s_quick_launch_squeeze_back_up(QuickLaunchPreference *pref) {
+static bool prv_set_s_quick_launch_tap_back_up(QuickLaunchPreference *pref) {
   prv_normalize_quick_launch_pref(pref);
-  s_quick_launch_squeeze_back_up = *pref;
+  s_quick_launch_tap_back_up = *pref;
   return true;
 }
 
-static bool prv_set_s_quick_launch_squeeze_back_down(QuickLaunchPreference *pref) {
+static bool prv_set_s_quick_launch_tap_back_down(QuickLaunchPreference *pref) {
   prv_normalize_quick_launch_pref(pref);
-  s_quick_launch_squeeze_back_down = *pref;
+  s_quick_launch_tap_back_down = *pref;
+  return true;
+}
+
+static bool prv_set_s_quick_launch_double_tap_back_up(QuickLaunchPreference *pref) {
+  prv_normalize_quick_launch_pref(pref);
+  s_quick_launch_double_tap_back_up = *pref;
+  return true;
+}
+
+static bool prv_set_s_quick_launch_double_tap_back_down(QuickLaunchPreference *pref) {
+  prv_normalize_quick_launch_pref(pref);
+  s_quick_launch_double_tap_back_down = *pref;
   return true;
 }
 
@@ -1942,33 +1968,36 @@ void quick_launch_combo_up_down_set_enabled(bool enabled) {
   prv_pref_set(PREF_KEY_QUICK_LAUNCH_COMBO_UP_DOWN, &pref, sizeof(pref));
 }
 
-static QuickLaunchPreference *prv_squeeze_pref(ButtonId button, const char **key_out) {
+static QuickLaunchPreference *prv_combo_tap_pref(ButtonId button, bool double_tap,
+                                                 const char **key_out) {
   switch (button) {
     case BUTTON_ID_UP:
-      *key_out = PREF_KEY_QUICK_LAUNCH_SQUEEZE_BACK_UP;
-      return &s_quick_launch_squeeze_back_up;
+      *key_out =
+          double_tap ? PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_UP : PREF_KEY_QUICK_LAUNCH_TAP_BACK_UP;
+      return double_tap ? &s_quick_launch_double_tap_back_up : &s_quick_launch_tap_back_up;
     case BUTTON_ID_DOWN:
-      *key_out = PREF_KEY_QUICK_LAUNCH_SQUEEZE_BACK_DOWN;
-      return &s_quick_launch_squeeze_back_down;
+      *key_out = double_tap ? PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_DOWN
+                            : PREF_KEY_QUICK_LAUNCH_TAP_BACK_DOWN;
+      return double_tap ? &s_quick_launch_double_tap_back_down : &s_quick_launch_tap_back_down;
     default:
       PBL_ASSERTN(0); // Should not reach here: only Back+Up and Back+Down exist
       return NULL;
   }
 }
 
-bool quick_launch_squeeze_is_enabled(ButtonId button) {
+bool quick_launch_combo_tap_is_enabled(ButtonId button, bool double_tap) {
   const char *key;
-  return prv_squeeze_pref(button, &key)->enabled;
+  return prv_combo_tap_pref(button, double_tap, &key)->enabled;
 }
 
-AppInstallId quick_launch_squeeze_get_app(ButtonId button) {
+AppInstallId quick_launch_combo_tap_get_app(ButtonId button, bool double_tap) {
   const char *key;
-  return app_install_get_id_for_uuid(&prv_squeeze_pref(button, &key)->uuid);
+  return app_install_get_id_for_uuid(&prv_combo_tap_pref(button, double_tap, &key)->uuid);
 }
 
-void quick_launch_squeeze_set_app(ButtonId button, AppInstallId app_id) {
+void quick_launch_combo_tap_set_app(ButtonId button, bool double_tap, AppInstallId app_id) {
   const char *key;
-  prv_squeeze_pref(button, &key);
+  prv_combo_tap_pref(button, double_tap, &key);
   QuickLaunchPreference pref = (QuickLaunchPreference){
     .enabled = true,
   };
@@ -1976,9 +2005,9 @@ void quick_launch_squeeze_set_app(ButtonId button, AppInstallId app_id) {
   prv_pref_set(key, &pref, sizeof(pref));
 }
 
-void quick_launch_squeeze_set_enabled(ButtonId button, bool enabled) {
+void quick_launch_combo_tap_set_enabled(ButtonId button, bool double_tap, bool enabled) {
   const char *key;
-  QuickLaunchPreference pref = *prv_squeeze_pref(button, &key);
+  QuickLaunchPreference pref = *prv_combo_tap_pref(button, double_tap, &key);
   pref.enabled = enabled;
   prv_pref_set(key, &pref, sizeof(pref));
 }
