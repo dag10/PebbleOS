@@ -247,7 +247,20 @@ void test_prefs_db__quick_launch_combo_tap(void) {
   prv_insert_tap_pref("qlDoubleTapBackDown", true, &invalid_uuid);
   cl_assert(!quick_launch_combo_tap_is_enabled(BUTTON_ID_DOWN, true));
 
+  // Back+Select has its own pair of prefs.
+  cl_assert(!quick_launch_combo_tap_is_enabled(BUTTON_ID_SELECT, false));
+  cl_assert(!quick_launch_combo_tap_is_enabled(BUTTON_ID_SELECT, true));
+  prv_insert_tap_pref("qlTapBackSelect", true, &other_uuid);
+  cl_assert(quick_launch_combo_tap_is_enabled(BUTTON_ID_SELECT, false));
+  cl_assert(!quick_launch_combo_tap_is_enabled(BUTTON_ID_SELECT, true));
+  prv_insert_tap_pref("qlDoubleTapBackSelect", true, &other_uuid);
+  cl_assert(quick_launch_combo_tap_is_enabled(BUTTON_ID_SELECT, true));
+  prv_insert_tap_pref("qlTapBackSelect", true, &invalid_uuid);
+  cl_assert(!quick_launch_combo_tap_is_enabled(BUTTON_ID_SELECT, false));
+  cl_assert(quick_launch_combo_tap_is_enabled(BUTTON_ID_SELECT, true));
+
   // The prefs outlive the test.
   prv_insert_tap_pref("qlSqueezeBackUp", false, &invalid_uuid);
   prv_insert_tap_pref("qlDoubleTapBackUp", false, &invalid_uuid);
+  prv_insert_tap_pref("qlDoubleTapBackSelect", false, &invalid_uuid);
 }

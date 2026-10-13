@@ -230,10 +230,12 @@ static QuickLaunchPreference s_quick_launch_back = {
 #define PREF_KEY_QUICK_LAUNCH_COMBO_UP_DOWN     "qlComboUpDown"
 // Tap Back+Up/Down keep the keys of the Squeeze gestures they replaced, so their
 // assignments carry over.
-#define PREF_KEY_QUICK_LAUNCH_TAP_BACK_UP          "qlSqueezeBackUp"
-#define PREF_KEY_QUICK_LAUNCH_TAP_BACK_DOWN        "qlSqueezeBackDown"
-#define PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_UP   "qlDoubleTapBackUp"
-#define PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_DOWN "qlDoubleTapBackDown"
+#define PREF_KEY_QUICK_LAUNCH_TAP_BACK_UP            "qlSqueezeBackUp"
+#define PREF_KEY_QUICK_LAUNCH_TAP_BACK_DOWN          "qlSqueezeBackDown"
+#define PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_UP     "qlDoubleTapBackUp"
+#define PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_DOWN   "qlDoubleTapBackDown"
+#define PREF_KEY_QUICK_LAUNCH_TAP_BACK_SELECT        "qlTapBackSelect"
+#define PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_SELECT "qlDoubleTapBackSelect"
 
 static QuickLaunchPreference s_quick_launch_single_click_up = {
   .enabled = true,
@@ -277,6 +279,16 @@ static QuickLaunchPreference s_quick_launch_double_tap_back_up = {
 };
 
 static QuickLaunchPreference s_quick_launch_double_tap_back_down = {
+  .enabled = false,
+  .uuid = UUID_INVALID_INIT,
+};
+
+static QuickLaunchPreference s_quick_launch_tap_back_select = {
+  .enabled = false,
+  .uuid = UUID_INVALID_INIT,
+};
+
+static QuickLaunchPreference s_quick_launch_double_tap_back_select = {
   .enabled = false,
   .uuid = UUID_INVALID_INIT,
 };
@@ -738,6 +750,18 @@ static bool prv_set_s_quick_launch_double_tap_back_up(QuickLaunchPreference *pre
 static bool prv_set_s_quick_launch_double_tap_back_down(QuickLaunchPreference *pref) {
   prv_normalize_quick_launch_pref(pref);
   s_quick_launch_double_tap_back_down = *pref;
+  return true;
+}
+
+static bool prv_set_s_quick_launch_tap_back_select(QuickLaunchPreference *pref) {
+  prv_normalize_quick_launch_pref(pref);
+  s_quick_launch_tap_back_select = *pref;
+  return true;
+}
+
+static bool prv_set_s_quick_launch_double_tap_back_select(QuickLaunchPreference *pref) {
+  prv_normalize_quick_launch_pref(pref);
+  s_quick_launch_double_tap_back_select = *pref;
   return true;
 }
 
@@ -1979,8 +2003,12 @@ static QuickLaunchPreference *prv_combo_tap_pref(ButtonId button, bool double_ta
       *key_out = double_tap ? PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_DOWN
                             : PREF_KEY_QUICK_LAUNCH_TAP_BACK_DOWN;
       return double_tap ? &s_quick_launch_double_tap_back_down : &s_quick_launch_tap_back_down;
+    case BUTTON_ID_SELECT:
+      *key_out = double_tap ? PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_SELECT
+                            : PREF_KEY_QUICK_LAUNCH_TAP_BACK_SELECT;
+      return double_tap ? &s_quick_launch_double_tap_back_select : &s_quick_launch_tap_back_select;
     default:
-      PBL_ASSERTN(0); // Should not reach here: only Back+Up and Back+Down exist
+      PBL_ASSERTN(0); // Should not reach here: only Back+Up, Back+Down and Back+Select exist
       return NULL;
   }
 }
