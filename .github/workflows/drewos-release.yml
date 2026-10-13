@@ -1,0 +1,131 @@
+# DrewPebbleOS release: build the sideloadable two-slot obelix@pvt .pbz for a drew tag
+# (vX.Y.Z-drew.N, made by the workspace's `./drewos tag`) and publish it as a GitHub
+# Release named after the tag. Same bundle as `./drewos package`: obelix@pvt linked for
+# slot 0 and for slot 1, each bundled with `pbl bundle`, merged by tools/merge_pbz.py
+# into normal_obelix_pvt_<tag>.pbz. Toolchain as upstream's build-firmware.yml.
+#
+# Manual runs: dispatch on a drew tag, or on any branch with the `tag` input (needed for
+# tags made before this workflow existed, e.g. `gh workflow run drewos-release.yml
+# --ref drew -f tag=v4.40.0-drew.4`). Re-running for a tag replaces the release's .pbz.
+name: DrewOS Release
+
+on:
+  push:
+    tags:
+      - 'v*-drew.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Drew tag to build and release (default the tag this run was dispatched on)
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: drewos-release-${{ inputs.tag || github.ref_name }}
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+
+    container:
+      image: ghcr.io/coredevices/pebbleos-docker:v8
+
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      BOARD: obelix@pvt
+      BOARD_NAME: obelix_pvt
+
+    steps:
+      - name: Check tag
+        run: |
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+-drew\.[0-9]+$'; then
+            echo "::error::'$TAG' is not a drew tag (vX.Y.Z-drew.N); dispatch on one or pass the tag input"
+            exit 1
+          fi
+
+      - name: Mark Github workspace as safe
+        run: git config --system --add safe.directory "${GITHUB_WORKSPACE}"
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          fetch-depth: 0
+          submodules: true
+
+      # Re-fetch so the drew tags are annotated (git describe, hence gitinfo.py, ignores
+      # lightweight tags).
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Check version stamp
+        run: |
+          git update-index -q --refresh || true
+          version=$(python3 -c "import sys; sys.path.insert(0, 'tools'); import gitinfo; print(gitinfo.get_git_revision()['TAG'])")
+          echo "gitinfo.py stamps $version"
+          if [ "$version" != "$TAG" ]; then
+            echo "::error::the build would be stamped $version, not $TAG"
+            exit 1
+          fi
+
+      - name: Install Python dependencies
+        run: |
+          pip install -U pip
+          pip install -r requirements.txt
+
+      - name: Build slot 0
+        run: |
+          pbl -b build/slot0 configure --board "$BOARD" -DCONFIG_FIRMWARE_SLOT=0
+          pbl -b build/slot0 build
+          pbl -b build/slot0 bundle
+
+      - name: Build slot 1
+        run: |
+          pbl -b build/slot1 configure --board "$BOARD" -DCONFIG_FIRMWARE_SLOT=1
+          pbl -b build/slot1 build
+          pbl -b build/slot1 bundle
+
+      - name: Merge slots
+        run: |
+          mkdir -p release
+          pbz="release/normal_${BOARD_NAME}_${TAG}.pbz"
+          python3 tools/merge_pbz.py \
+            --slot0-pbz "build/slot0/normal_${BOARD_NAME}_${TAG}_slot0.pbz" \
+            --slot1-pbz "build/slot1/normal_${BOARD_NAME}_${TAG}_slot1.pbz" \
+            --output "$pbz"
+          python3 - "$pbz" <<'PY'
+          import json, os, sys, zipfile
+          pbz, tag = sys.argv[1], os.environ["TAG"]
+          with zipfile.ZipFile(pbz) as z:
+              for slot in (0, 1):
+                  fw = json.loads(z.read(f"slot{slot}/manifest.json"))["firmware"]
+                  print(f"slot{slot}: versionTag {fw['versionTag']}, slot {fw['slot']}, hwrev {fw['hwrev']}")
+                  if fw["versionTag"] != tag or fw["slot"] != slot:
+                      sys.exit(f"slot{slot}/manifest.json does not match {tag}, slot {slot}")
+          PY
+          ls -l release
+
+      - name: Write release notes
+        run: |
+          # The previous drew tag on this base, else the public release drew sits on.
+          prev=$(git describe --abbrev=0 --match 'v*-drew.*' "$TAG^" 2>/dev/null ||
+                 git describe --abbrev=0 --exclude '*-*' "$TAG^")
+          {
+            echo "DrewPebbleOS $TAG for Pebble Time 2 (obelix@pvt). Sideload \`normal_${BOARD_NAME}_${TAG}.pbz\` (slots 0 and 1)."
+            echo
+            echo "Changes since $prev:"
+            echo
+            git log --reverse --no-merges --format='- %s (%h)' "$prev..$TAG"
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: Create release
+        uses: softprops/action-gh-release@v3.0.3
+        with:
+          tag_name: ${{ env.TAG }}
+          name: ${{ env.TAG }}
+          body_path: release-notes.md
+          files: release/*.pbz
