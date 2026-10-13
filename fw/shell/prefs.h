@@ -279,3 +279,14 @@ void shell_prefs_set_music_show_progress_bar(bool enable);
 
 bool shell_prefs_get_music_show_album_art(void);
 void shell_prefs_set_music_show_album_art(bool enable);
+
+//! Order of the apps in the launcher, chosen by holding Back in it
+typedef enum LauncherSortMode {
+  LauncherSortMode_Default,
+  LauncherSortMode_RecentlyUsed,
+  LauncherSortMode_Alphabetical,
+  LauncherSortModeCount,
+} LauncherSortMode;
+
+LauncherSortMode shell_prefs_get_launcher_sort_mode(void);
+void shell_prefs_set_launcher_sort_mode(LauncherSortMode mode);
