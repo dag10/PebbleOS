@@ -60,7 +60,7 @@ PBL_LOG_MODULE_DEFINE(service_app_cache, CONFIG_SERVICE_APP_CACHE_LOG_LEVEL);
 #define MAX_PRIORITY ((uint32_t)~0)
 
 // 8 quick launch apps, 1 default watchface, 1 default worker
-#define DO_NOT_EVICT_LIST_SIZE (10)
+#define DO_NOT_EVICT_LIST_SIZE (12)
 
 static PBL_MUTEX_DEFINE(s_app_cache_mutex);
 
@@ -278,6 +278,8 @@ status_t app_cache_free_up_space(uint32_t bytes_needed) {
         quick_launch_single_click_get_app(BUTTON_ID_DOWN),
         quick_launch_combo_back_up_get_app(),
         quick_launch_combo_up_down_get_app(),
+        quick_launch_squeeze_get_app(BUTTON_ID_UP),
+        quick_launch_squeeze_get_app(BUTTON_ID_DOWN),
 #endif
         watchface_get_default_install_id(),
         worker_preferences_get_default_worker(),
