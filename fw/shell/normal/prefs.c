@@ -225,8 +225,11 @@ static QuickLaunchPreference s_quick_launch_back = {
 
 #define PREF_KEY_QUICK_LAUNCH_SINGLE_CLICK_UP   "qlSingleClickUp"
 #define PREF_KEY_QUICK_LAUNCH_SINGLE_CLICK_DOWN "qlSingleClickDown"
+#define PREF_KEY_QUICK_LAUNCH_SINGLE_CLICK_BACK "qlSingleClickBack"
 #define PREF_KEY_QUICK_LAUNCH_COMBO_BACK_UP     "qlComboBackUp"
 #define PREF_KEY_QUICK_LAUNCH_COMBO_UP_DOWN     "qlComboUpDown"
+#define PREF_KEY_QUICK_LAUNCH_SQUEEZE_BACK_UP   "qlSqueezeBackUp"
+#define PREF_KEY_QUICK_LAUNCH_SQUEEZE_BACK_DOWN "qlSqueezeBackDown"
 
 static QuickLaunchPreference s_quick_launch_single_click_up = {
   .enabled = true,
@@ -238,12 +241,28 @@ static QuickLaunchPreference s_quick_launch_single_click_down = {
   .uuid = TIMELINE_UUID_INIT,
 };
 
+// Unassigned keeps Back's stock tap: dismissing the timeline peek.
+static QuickLaunchPreference s_quick_launch_single_click_back = {
+  .enabled = false,
+  .uuid = UUID_INVALID_INIT,
+};
+
 static QuickLaunchPreference s_quick_launch_combo_back_up = {
   .enabled = false,
   .uuid = UUID_INVALID_INIT,
 };
 
 static QuickLaunchPreference s_quick_launch_combo_up_down = {
+  .enabled = false,
+  .uuid = UUID_INVALID_INIT,
+};
+
+static QuickLaunchPreference s_quick_launch_squeeze_back_up = {
+  .enabled = false,
+  .uuid = UUID_INVALID_INIT,
+};
+
+static QuickLaunchPreference s_quick_launch_squeeze_back_down = {
   .enabled = false,
   .uuid = UUID_INVALID_INIT,
 };
@@ -664,6 +683,12 @@ static bool prv_set_s_quick_launch_single_click_down(QuickLaunchPreference *pref
   return true;
 }
 
+static bool prv_set_s_quick_launch_single_click_back(QuickLaunchPreference *pref) {
+  prv_normalize_quick_launch_pref(pref);
+  s_quick_launch_single_click_back = *pref;
+  return true;
+}
+
 static bool prv_set_s_quick_launch_combo_back_up(QuickLaunchPreference *pref) {
   prv_normalize_quick_launch_pref(pref);
   s_quick_launch_combo_back_up = *pref;
@@ -673,6 +698,18 @@ static bool prv_set_s_quick_launch_combo_back_up(QuickLaunchPreference *pref) {
 static bool prv_set_s_quick_launch_combo_up_down(QuickLaunchPreference *pref) {
   prv_normalize_quick_launch_pref(pref);
   s_quick_launch_combo_up_down = *pref;
+  return true;
+}
+
+static bool prv_set_s_quick_launch_squeeze_back_up(QuickLaunchPreference *pref) {
+  prv_normalize_quick_launch_pref(pref);
+  s_quick_launch_squeeze_back_up = *pref;
+  return true;
+}
+
+static bool prv_set_s_quick_launch_squeeze_back_down(QuickLaunchPreference *pref) {
+  prv_normalize_quick_launch_pref(pref);
+  s_quick_launch_squeeze_back_down = *pref;
   return true;
 }
 
@@ -1740,8 +1777,9 @@ bool quick_launch_single_click_is_enabled(ButtonId button) {
       return s_quick_launch_single_click_up.enabled;
     case BUTTON_ID_DOWN:
       return s_quick_launch_single_click_down.enabled;
-    case BUTTON_ID_SELECT:
     case BUTTON_ID_BACK:
+      return s_quick_launch_single_click_back.enabled;
+    case BUTTON_ID_SELECT:
     case NUM_BUTTONS:
       break;
   }
@@ -1756,6 +1794,9 @@ AppInstallId quick_launch_single_click_get_app(ButtonId button) {
       break;
     case BUTTON_ID_DOWN:
       uuid = &s_quick_launch_single_click_down.uuid;
+      break;
+    case BUTTON_ID_BACK:
+      uuid = &s_quick_launch_single_click_back.uuid;
       break;
     default:
       PBL_ASSERTN(0); // Should not reach here: invalid button id
@@ -1778,6 +1819,9 @@ void quick_launch_single_click_set_app(ButtonId button, AppInstallId app_id) {
     case BUTTON_ID_DOWN:
       key = PREF_KEY_QUICK_LAUNCH_SINGLE_CLICK_DOWN;
       break;
+    case BUTTON_ID_BACK:
+      key = PREF_KEY_QUICK_LAUNCH_SINGLE_CLICK_BACK;
+      break;
     default:
       PBL_ASSERTN(0); // Should not reach here: invalid button id
       break;
@@ -1798,6 +1842,10 @@ void quick_launch_single_click_set_enabled(ButtonId button, bool enabled) {
       pref = s_quick_launch_single_click_down;
       key = PREF_KEY_QUICK_LAUNCH_SINGLE_CLICK_DOWN;
       break;
+    case BUTTON_ID_BACK:
+      pref = s_quick_launch_single_click_back;
+      key = PREF_KEY_QUICK_LAUNCH_SINGLE_CLICK_BACK;
+      break;
     default:
       PBL_ASSERTN(0); // Should not reach here: invalid button id
       break;
@@ -1806,20 +1854,37 @@ void quick_launch_single_click_set_enabled(ButtonId button, bool enabled) {
   prv_pref_set(key, &pref, sizeof(pref));
 }
 
-bool quick_launch_single_click_is_sent_to_watchface(ButtonId button) {
+static bool prv_is_sent_to_watchface(const QuickLaunchPreference *pref) {
   static const Uuid s_watchface_uuid = QUICK_LAUNCH_WATCHFACE_UUID;
-  const QuickLaunchPreference *pref = NULL;
+  return pref->enabled && uuid_equal(&pref->uuid, &s_watchface_uuid);
+}
+
+bool quick_launch_single_click_is_sent_to_watchface(ButtonId button) {
   switch (button) {
     case BUTTON_ID_UP:
-      pref = &s_quick_launch_single_click_up;
-      break;
+      return prv_is_sent_to_watchface(&s_quick_launch_single_click_up);
     case BUTTON_ID_DOWN:
-      pref = &s_quick_launch_single_click_down;
-      break;
+      return prv_is_sent_to_watchface(&s_quick_launch_single_click_down);
+    case BUTTON_ID_BACK:
+      return prv_is_sent_to_watchface(&s_quick_launch_single_click_back);
     default:
       return false;
   }
-  return pref->enabled && uuid_equal(&pref->uuid, &s_watchface_uuid);
+}
+
+bool quick_launch_is_sent_to_watchface(ButtonId button) {
+  switch (button) {
+    case BUTTON_ID_UP:
+      return prv_is_sent_to_watchface(&s_quick_launch_up);
+    case BUTTON_ID_DOWN:
+      return prv_is_sent_to_watchface(&s_quick_launch_down);
+    case BUTTON_ID_SELECT:
+      return prv_is_sent_to_watchface(&s_quick_launch_select);
+    case BUTTON_ID_BACK:
+      return prv_is_sent_to_watchface(&s_quick_launch_back);
+    default:
+      return false;
+  }
 }
 
 bool quick_launch_combo_back_up_is_enabled(void) {
@@ -1864,6 +1929,47 @@ void quick_launch_combo_up_down_set_enabled(bool enabled) {
   QuickLaunchPreference pref = s_quick_launch_combo_up_down;
   pref.enabled = enabled;
   prv_pref_set(PREF_KEY_QUICK_LAUNCH_COMBO_UP_DOWN, &pref, sizeof(pref));
+}
+
+static QuickLaunchPreference *prv_squeeze_pref(ButtonId button, const char **key_out) {
+  switch (button) {
+    case BUTTON_ID_UP:
+      *key_out = PREF_KEY_QUICK_LAUNCH_SQUEEZE_BACK_UP;
+      return &s_quick_launch_squeeze_back_up;
+    case BUTTON_ID_DOWN:
+      *key_out = PREF_KEY_QUICK_LAUNCH_SQUEEZE_BACK_DOWN;
+      return &s_quick_launch_squeeze_back_down;
+    default:
+      PBL_ASSERTN(0); // Should not reach here: only Back+Up and Back+Down exist
+      return NULL;
+  }
+}
+
+bool quick_launch_squeeze_is_enabled(ButtonId button) {
+  const char *key;
+  return prv_squeeze_pref(button, &key)->enabled;
+}
+
+AppInstallId quick_launch_squeeze_get_app(ButtonId button) {
+  const char *key;
+  return app_install_get_id_for_uuid(&prv_squeeze_pref(button, &key)->uuid);
+}
+
+void quick_launch_squeeze_set_app(ButtonId button, AppInstallId app_id) {
+  const char *key;
+  prv_squeeze_pref(button, &key);
+  QuickLaunchPreference pref = (QuickLaunchPreference){
+    .enabled = true,
+  };
+  app_install_get_uuid_for_install_id(app_id, &pref.uuid);
+  prv_pref_set(key, &pref, sizeof(pref));
+}
+
+void quick_launch_squeeze_set_enabled(ButtonId button, bool enabled) {
+  const char *key;
+  QuickLaunchPreference pref = *prv_squeeze_pref(button, &key);
+  pref.enabled = enabled;
+  prv_pref_set(key, &pref, sizeof(pref));
 }
 
 void watchface_set_default_install_id(AppInstallId app_id) {
