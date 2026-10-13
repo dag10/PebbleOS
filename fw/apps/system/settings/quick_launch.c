@@ -27,16 +27,36 @@
 #include <shell/normal/quick_launch.h>
 #include <system/passert.h>
 
-#define NUM_ROWS (NUM_BUTTONS + 2) // 4 hold buttons + 2 tap buttons (up and down)
-
 typedef enum {
   ROW_TAP_UP = 0,
   ROW_TAP_DOWN,
+  ROW_TAP_BACK,
   ROW_HOLD_UP,
   ROW_HOLD_SELECT,
   ROW_HOLD_DOWN,
   ROW_HOLD_BACK,
+  ROW_SQUEEZE_BACK_UP,
+  ROW_SQUEEZE_BACK_DOWN,
+
+  NUM_ROWS,
 } QuickLaunchRow;
+
+typedef struct {
+  QuickLaunchGesture gesture;
+  ButtonId button;
+} QuickLaunchBinding;
+
+static const QuickLaunchBinding s_row_bindings[NUM_ROWS] = {
+  [ROW_TAP_UP] = {QuickLaunchGestureTap, BUTTON_ID_UP},
+  [ROW_TAP_DOWN] = {QuickLaunchGestureTap, BUTTON_ID_DOWN},
+  [ROW_TAP_BACK] = {QuickLaunchGestureTap, BUTTON_ID_BACK},
+  [ROW_HOLD_UP] = {QuickLaunchGestureHold, BUTTON_ID_UP},
+  [ROW_HOLD_SELECT] = {QuickLaunchGestureHold, BUTTON_ID_SELECT},
+  [ROW_HOLD_DOWN] = {QuickLaunchGestureHold, BUTTON_ID_DOWN},
+  [ROW_HOLD_BACK] = {QuickLaunchGestureHold, BUTTON_ID_BACK},
+  [ROW_SQUEEZE_BACK_UP] = {QuickLaunchGestureSqueeze, BUTTON_ID_UP},
+  [ROW_SQUEEZE_BACK_DOWN] = {QuickLaunchGestureSqueeze, BUTTON_ID_DOWN},
+};
 
 typedef enum {
   CATEGORY_ROW_ACTIONS = 0,
@@ -48,9 +68,8 @@ typedef enum {
 typedef struct QuickLaunchData {
   SettingsCallbacks callbacks;
   char app_names[NUM_ROWS][APP_NAME_SIZE_BYTES];
-  //! The button whose binding the pushed sub-menus are editing.
-  ButtonId button;
-  bool is_tap;
+  //! The binding the pushed sub-menus are editing.
+  QuickLaunchBinding binding;
 } QuickLaunchData;
 
 static const char *s_row_titles[NUM_ROWS] = {
@@ -58,6 +77,8 @@ static const char *s_row_titles[NUM_ROWS] = {
   [ROW_TAP_UP] = i18n_noop("Tap Up"),
   /// Shown in Quick Launch Settings as the title of the tap down button option.
   [ROW_TAP_DOWN] = i18n_noop("Tap Down"),
+  /// Shown in Quick Launch Settings as the title of the tap back button option.
+  [ROW_TAP_BACK] = i18n_noop("Tap Back"),
   /// Shown in Quick Launch Settings as the title of the hold up button quick launch option.
   [ROW_HOLD_UP] = i18n_noop("Hold Up"),
   /// Shown in Quick Launch Settings as the title of the hold center button quick launch option.
@@ -66,6 +87,11 @@ static const char *s_row_titles[NUM_ROWS] = {
   [ROW_HOLD_DOWN] = i18n_noop("Hold Down"),
   /// Shown in Quick Launch Settings as the title of the hold back button quick launch option.
   [ROW_HOLD_BACK] = i18n_noop("Hold Back"),
+  /// Shown in Quick Launch Settings as the title of the option for pressing back and up together.
+  [ROW_SQUEEZE_BACK_UP] = i18n_noop("Squeeze Back+Up"),
+  /// Shown in Quick Launch Settings as the title of the option for pressing back and down
+  /// together.
+  [ROW_SQUEEZE_BACK_DOWN] = i18n_noop("Squeeze Back+Down"),
 };
 
 static const char *s_category_row_titles[CategoryRowCount] = {
@@ -102,21 +128,11 @@ static void prv_deinit_cb(SettingsCallbacks *context) {
 }
 
 static void prv_update_app_names(QuickLaunchData *data) {
-  // Tap buttons
-  prv_get_subtitle_string(quick_launch_single_click_get_app(BUTTON_ID_UP), data,
-                          data->app_names[ROW_TAP_UP], APP_NAME_SIZE_BYTES);
-  prv_get_subtitle_string(quick_launch_single_click_get_app(BUTTON_ID_DOWN), data,
-                          data->app_names[ROW_TAP_DOWN], APP_NAME_SIZE_BYTES);
-
-  // Hold buttons
-  prv_get_subtitle_string(quick_launch_get_app(BUTTON_ID_UP), data, data->app_names[ROW_HOLD_UP],
-                          APP_NAME_SIZE_BYTES);
-  prv_get_subtitle_string(quick_launch_get_app(BUTTON_ID_SELECT), data,
-                          data->app_names[ROW_HOLD_SELECT], APP_NAME_SIZE_BYTES);
-  prv_get_subtitle_string(quick_launch_get_app(BUTTON_ID_DOWN), data,
-                          data->app_names[ROW_HOLD_DOWN], APP_NAME_SIZE_BYTES);
-  prv_get_subtitle_string(quick_launch_get_app(BUTTON_ID_BACK), data,
-                          data->app_names[ROW_HOLD_BACK], APP_NAME_SIZE_BYTES);
+  for (int row = 0; row < NUM_ROWS; row++) {
+    const QuickLaunchBinding *binding = &s_row_bindings[row];
+    prv_get_subtitle_string(quick_launch_app_menu_get_app(binding->gesture, binding->button), data,
+                            data->app_names[row], APP_NAME_SIZE_BYTES);
+  }
 }
 
 static void prv_draw_row_cb(SettingsCallbacks *context, GContext *ctx, const Layer *cell_layer,
@@ -151,8 +167,8 @@ static uint16_t prv_get_initial_selection_cb(SettingsCallbacks *context) {
 
 //! The row to start on, which is the category the button is currently bound to.
 static QuickLaunchCategoryRow prv_get_category_row(QuickLaunchData *data) {
-  const AppInstallId app_id = data->is_tap ? quick_launch_single_click_get_app(data->button)
-                                           : quick_launch_get_app(data->button);
+  const AppInstallId app_id =
+      quick_launch_app_menu_get_app(data->binding.gesture, data->binding.button);
   AppInstallEntry entry;
   if ((app_id == INSTALL_ID_INVALID) || !app_install_get_entry_for_install_id(app_id, &entry)) {
     return CATEGORY_ROW_ACTIONS;
@@ -166,7 +182,8 @@ static void prv_category_menu_select(OptionMenu *option_menu, int selection, voi
   const QuickLaunchMenuCategory category = (selection == CATEGORY_ROW_ACTIONS)
                                                ? QuickLaunchMenuCategoryActions
                                                : QuickLaunchMenuCategoryApps;
-  quick_launch_app_menu_window_push(data->button, data->is_tap, category, &option_menu->window);
+  quick_launch_app_menu_window_push(data->binding.gesture, data->binding.button, category,
+                                    &option_menu->window);
 }
 
 static void prv_category_menu_push(QuickLaunchData *data) {
@@ -181,41 +198,14 @@ static void prv_category_menu_push(QuickLaunchData *data) {
 static void prv_select_click_cb(SettingsCallbacks *context, uint16_t row) {
   PBL_ASSERTN(row < NUM_ROWS);
 
-  ButtonId button;
-  bool is_tap;
-
-  switch (row) {
-    case ROW_TAP_UP:
-      button = BUTTON_ID_UP;
-      is_tap = true;
-      break;
-    case ROW_TAP_DOWN:
-      button = BUTTON_ID_DOWN;
-      is_tap = true;
-      break;
-    case ROW_HOLD_UP:
-      button = BUTTON_ID_UP;
-      is_tap = false;
-      break;
-    case ROW_HOLD_SELECT:
-      button = BUTTON_ID_SELECT;
-      is_tap = false;
-      break;
-    case ROW_HOLD_DOWN:
-      button = BUTTON_ID_DOWN;
-      is_tap = false;
-      break;
-    case ROW_HOLD_BACK:
-      button = BUTTON_ID_BACK;
-      is_tap = false;
-      break;
-    default:
-      return;
-  }
-
   QuickLaunchData *data = (QuickLaunchData *)context;
-  data->button = button;
-  data->is_tap = is_tap;
+  data->binding = s_row_bindings[row];
+  if (row == ROW_TAP_BACK) {
+    // Its only choice is an action, "Send to watchface", so skip the category menu.
+    quick_launch_app_menu_window_push(data->binding.gesture, data->binding.button,
+                                      QuickLaunchMenuCategoryActions, NULL);
+    return;
+  }
   prv_category_menu_push(data);
 }
 

@@ -5,6 +5,7 @@
 
 #include <pbl/logging/logging.h>
 #include <pbl/services/compositor/compositor_transitions.h>
+#include <pbl/services/music.h>
 #include <pbl/services/notifications/do_not_disturb.h>
 
 #include <applib/app_launch_reason.h>
@@ -35,6 +36,8 @@ static ClickManager s_click_manager;
 static uint8_t s_buttons_pressed = BIT_CLEAR;
 static AppTimer *s_combo_back_hold_timer = nullptr;
 static uint8_t s_active_combo_buttons = BIT_CLEAR;
+//! Buttons whose hold was sent to the watchface as a button down, owing it a button up.
+static uint8_t s_watchface_held_buttons = BIT_CLEAR;
 
 static void prv_launch_quick_launch_app(AppInstallId app_id, ButtonId button,
                                         AppLaunchReason timeline_reason,
@@ -100,12 +103,8 @@ static void prv_combo_back_timer_callback(void *data) {
   const ButtonId source_button =
       (s_active_combo_buttons == COMBO_BACK_UP_BUTTONS) ? BUTTON_ID_BACK : BUTTON_ID_UP;
   s_active_combo_buttons = BIT_CLEAR;
-  if (app_id != INSTALL_ID_INVALID) {
-    // Reset all button states before launching app to prevent state corruption.
-    s_buttons_pressed = BIT_CLEAR;
-    prv_launch_quick_launch_app(app_id, source_button, APP_LAUNCH_QUICK_LAUNCH,
-                                APP_QUICK_LAUNCH_ACTION_COMBO);
-  }
+  prv_launch_quick_launch_app(app_id, source_button, APP_LAUNCH_QUICK_LAUNCH,
+                              APP_QUICK_LAUNCH_ACTION_COMBO);
 }
 
 static void prv_check_combo_back_hold(void) {
@@ -180,14 +179,41 @@ static void prv_launch_timeline_app(AppInstallId app_id, ButtonId button, AppLau
   });
 }
 
+//! The music actions send their command from here, so the watchface stays on screen.
+static bool prv_send_music_command(AppInstallId app_id) {
+  MusicCommand command;
+  switch (app_id) {
+    case APP_ID_QUICK_LAUNCH_MUSIC_PLAY_PAUSE:
+      command = MusicCommandTogglePlayPause;
+      break;
+    case APP_ID_QUICK_LAUNCH_MUSIC_NEXT_TRACK:
+      command = MusicCommandNextTrack;
+      break;
+    case APP_ID_QUICK_LAUNCH_MUSIC_PREVIOUS_TRACK:
+      command = MusicCommandPreviousTrack;
+      break;
+    default:
+      return false;
+  }
+  music_command_send(command);
+  return true;
+}
+
 static void prv_launch_quick_launch_app(AppInstallId app_id, ButtonId button,
                                         AppLaunchReason timeline_reason,
                                         AppQuickLaunchAction action) {
-  // "Send to watchface" is only meaningful for a tap; anywhere else it is inert.
+  // "Send to watchface" is handled by the tap and hold handlers; for a combo it is inert.
   if ((app_id == INSTALL_ID_INVALID) || (app_id == APP_ID_QUICK_LAUNCH_NOTHING) ||
       (app_id == APP_ID_QUICK_LAUNCH_WATCHFACE)) {
     return;
   }
+
+  if (prv_send_music_command(app_id)) {
+    return;
+  }
+
+  // The rest of this press goes to the launched app, so forget the buttons still held.
+  s_buttons_pressed = BIT_CLEAR;
 
   const bool is_timeline = (app_id == APP_ID_TIMELINE) || (app_id == APP_ID_TIMELINE_PAST) ||
                            (app_id == APP_ID_TIMELINE_FULL);
@@ -203,6 +229,44 @@ static void prv_launch_quick_launch_app(AppInstallId app_id, ButtonId button,
   }
 }
 
+//! Replay a button event on the watchface's own event queue, where the watchface's click config
+//! (window_single_click_subscribe() and friends) handles it as in any app. The real button
+//! events stay masked from the app, which is what keeps the Quick Launch gestures working.
+static bool prv_send_button_event_to_watchface(PebbleEventType type, ButtonId button,
+                                               uint16_t held_ms) {
+  PebbleEvent e = {
+    .type = type,
+    .button = {
+      .button_id = button,
+      .is_replayed = true,
+      .held_ms = held_ms,
+    },
+  };
+  return process_manager_send_event_to_process(PebbleTask_App, &e);
+}
+
+//! A tap the shell recognized reaches the watchface as a short press.
+static void prv_send_tap_to_watchface(ButtonId button) {
+  if (prv_send_button_event_to_watchface(PEBBLE_BUTTON_DOWN_EVENT, button, 0)) {
+    prv_send_button_event_to_watchface(PEBBLE_BUTTON_UP_EVENT, button, 0);
+  }
+}
+
+//! A hold the shell recognized reaches the watchface as a press already held for the hold
+//! delay, so its long click fires that much sooner. The button up follows on release.
+static void prv_send_hold_to_watchface(ButtonId button) {
+  if (prv_send_button_event_to_watchface(PEBBLE_BUTTON_DOWN_EVENT, button, QUICK_LAUNCH_HOLD_MS)) {
+    s_watchface_held_buttons |= (BIT_SET << button);
+  }
+}
+
+static void prv_release_watchface_hold(ButtonId button) {
+  if (s_watchface_held_buttons & (BIT_SET << button)) {
+    s_watchface_held_buttons &= ~(BIT_SET << button);
+    prv_send_button_event_to_watchface(PEBBLE_BUTTON_UP_EVENT, button, 0);
+  }
+}
+
 static void prv_quick_launch_handler(ClickRecognizerRef recognizer, void *data) {
   ButtonId button = click_recognizer_get_button_id(recognizer);
 
@@ -212,29 +276,16 @@ static void prv_quick_launch_handler(ClickRecognizerRef recognizer, void *data) 
 
   AppInstallId app_id =
       quick_launch_is_enabled(button) ? quick_launch_get_app(button) : INSTALL_ID_INVALID;
+  if (app_id == APP_ID_QUICK_LAUNCH_WATCHFACE) {
+    prv_send_hold_to_watchface(button);
+    return;
+  }
   if (app_id == INSTALL_ID_INVALID) {
     app_id = app_install_get_id_for_uuid(&quick_launch_setup_get_app_info()->uuid);
   }
-  s_buttons_pressed = BIT_CLEAR; // Reset our own tracking
 
   prv_launch_quick_launch_app(app_id, button, APP_LAUNCH_QUICK_LAUNCH,
                               APP_QUICK_LAUNCH_ACTION_HOLD);
-}
-
-//! Replay a tap the shell recognized as a button down and up on the watchface's own event
-//! queue, so the watchface's click config (window_single_click_subscribe() and friends) sees
-//! a short press. The real button events stay masked from the app, which is what keeps holds
-//! and the Up+Down / Back+Up combos working as Quick Launch gestures.
-static void prv_send_tap_to_watchface(ButtonId button) {
-  PebbleEvent e = {
-    .type = PEBBLE_BUTTON_DOWN_EVENT,
-    .button.button_id = button,
-  };
-  if (!process_manager_send_event_to_process(PebbleTask_App, &e)) {
-    return;
-  }
-  e.type = PEBBLE_BUTTON_UP_EVENT;
-  process_manager_send_event_to_process(PebbleTask_App, &e);
 }
 
 static void prv_launch_up_down(ClickRecognizerRef recognizer, void *data) {
@@ -289,18 +340,57 @@ static void prv_launch_launcher_app(ClickRecognizerRef recognizer, void *data) {
       recognizer);
 }
 
-static void prv_dismiss_timeline_peek(ClickRecognizerRef recognizer, void *data) {
+static void prv_back_click_handler(ClickRecognizerRef recognizer, void *data) {
   if (prv_is_any_combo_active()) {
     return;
   }
+  // A timeline peek on screen still takes the tap, as it covers the watchface.
+  TimelineItemId peek_item_id;
+  timeline_peek_get_item_id(&peek_item_id);
+  if (uuid_is_invalid(&peek_item_id) &&
+      quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_BACK)) {
+    prv_send_tap_to_watchface(BUTTON_ID_BACK);
+    return;
+  }
   timeline_peek_dismiss();
+}
+
+//! Back+Up and Back+Down fire as soon as the second of the two buttons goes down, in either
+//! order. Returns true if one fired, which also cancels both buttons' own tap and hold.
+static bool prv_check_squeeze(ButtonId pressed) {
+  const bool back_held = (s_buttons_pressed & (BIT_SET << BUTTON_ID_BACK));
+  const bool up_held = (s_buttons_pressed & (BIT_SET << BUTTON_ID_UP));
+  const bool down_held = (s_buttons_pressed & (BIT_SET << BUTTON_ID_DOWN));
+
+  ButtonId other;
+  if ((pressed == BUTTON_ID_UP || pressed == BUTTON_ID_DOWN) && back_held) {
+    other = pressed;
+  } else if (pressed == BUTTON_ID_BACK && (up_held != down_held)) {
+    other = up_held ? BUTTON_ID_UP : BUTTON_ID_DOWN;
+  } else {
+    return false;
+  }
+  if (!quick_launch_squeeze_is_enabled(other)) {
+    return false;
+  }
+
+  click_recognizer_reset(&s_click_manager.recognizers[BUTTON_ID_BACK]);
+  click_recognizer_reset(&s_click_manager.recognizers[other]);
+  if (s_combo_back_hold_timer != NULL) {
+    app_timer_cancel(s_combo_back_hold_timer);
+    s_combo_back_hold_timer = NULL;
+    s_active_combo_buttons = BIT_CLEAR;
+  }
+  prv_launch_quick_launch_app(quick_launch_squeeze_get_app(other), BUTTON_ID_BACK,
+                              APP_LAUNCH_QUICK_LAUNCH, APP_QUICK_LAUNCH_ACTION_COMBO);
+  return true;
 }
 
 static void prv_watchface_configure_click_handlers(void) {
   prv_configure_click_handler(BUTTON_ID_UP, prv_launch_up_down);
   prv_configure_click_handler(BUTTON_ID_DOWN, prv_launch_up_down);
   prv_configure_click_handler(BUTTON_ID_SELECT, prv_launch_launcher_app);
-  prv_configure_click_handler(BUTTON_ID_BACK, prv_dismiss_timeline_peek);
+  prv_configure_click_handler(BUTTON_ID_BACK, prv_back_click_handler);
 }
 
 void watchface_init(void) {
@@ -316,12 +406,15 @@ void watchface_handle_button_event(PebbleEvent *e) {
     case PEBBLE_BUTTON_DOWN_EVENT:
       s_buttons_pressed |= (BIT_SET << e->button.button_id);
       click_recognizer_handle_button_down(&s_click_manager.recognizers[e->button.button_id]);
-      prv_check_combo_back_hold();
+      if (!prv_check_squeeze(e->button.button_id)) {
+        prv_check_combo_back_hold();
+      }
       break;
     case PEBBLE_BUTTON_UP_EVENT:
       s_buttons_pressed &= ~(BIT_SET << e->button.button_id);
       prv_check_combo_back_hold();
       click_recognizer_handle_button_up(&s_click_manager.recognizers[e->button.button_id]);
+      prv_release_watchface_hold(e->button.button_id);
       break;
     default:
       PBL_CROAK("Invalid event type: %u", e->type);
@@ -358,4 +451,8 @@ void watchface_start_low_power(void) {
 
 void watchface_reset_click_manager(void) {
   click_manager_reset(&s_click_manager);
+  // Whatever takes the buttons now gets their releases, so finish the watchface's holds.
+  for (ButtonId button = 0; button < NUM_BUTTONS; button++) {
+    prv_release_watchface_hold(button);
+  }
 }

@@ -170,7 +170,62 @@ void test_prefs_db__quick_launch_tap_sent_to_watchface(void) {
   prv_insert_tap_pref("qlSingleClickDown", true, &other_uuid);
   cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_DOWN));
 
-  // Only Up and Down have taps.
+  // Select has no tap binding, and Back's is unassigned by default.
   cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_SELECT));
   cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_BACK));
+}
+
+void test_prefs_db__quick_launch_tap_back_sent_to_watchface(void) {
+  const Uuid watchface_uuid = QUICK_LAUNCH_WATCHFACE_UUID;
+
+  // Unassigned by default, which keeps Back's stock tap.
+  cl_assert(!quick_launch_single_click_is_enabled(BUTTON_ID_BACK));
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_BACK));
+
+  prv_insert_tap_pref("qlSingleClickBack", true, &watchface_uuid);
+  cl_assert(quick_launch_single_click_is_enabled(BUTTON_ID_BACK));
+  cl_assert(quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_BACK));
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_SELECT));
+
+  // The prefs outlive the test.
+  const Uuid invalid_uuid = UUID_INVALID_INIT;
+  prv_insert_tap_pref("qlSingleClickBack", false, &invalid_uuid);
+}
+
+void test_prefs_db__quick_launch_hold_sent_to_watchface(void) {
+  const Uuid watchface_uuid = QUICK_LAUNCH_WATCHFACE_UUID;
+
+  // The defaults (unassigned, Back toggles Quiet Time) keep every hold for the system.
+  for (ButtonId button = 0; button < NUM_BUTTONS; button++) {
+    cl_assert(!quick_launch_is_sent_to_watchface(button));
+  }
+
+  prv_insert_tap_pref("qlSelect", true, &watchface_uuid);
+  prv_insert_tap_pref("qlBack", true, &watchface_uuid);
+  cl_assert(quick_launch_is_sent_to_watchface(BUTTON_ID_SELECT));
+  cl_assert(quick_launch_is_sent_to_watchface(BUTTON_ID_BACK));
+  cl_assert(!quick_launch_is_sent_to_watchface(BUTTON_ID_UP));
+  // A hold binding is independent of the tap binding of the same button.
+  cl_assert(!quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_BACK));
+
+  // The prefs outlive the test.
+  const Uuid invalid_uuid = UUID_INVALID_INIT;
+  prv_insert_tap_pref("qlSelect", false, &invalid_uuid);
+  prv_insert_tap_pref("qlBack", false, &invalid_uuid);
+}
+
+void test_prefs_db__quick_launch_squeeze(void) {
+  const Uuid other_uuid = {0, 1, 2, 3};
+
+  cl_assert(!quick_launch_squeeze_is_enabled(BUTTON_ID_UP));
+  cl_assert(!quick_launch_squeeze_is_enabled(BUTTON_ID_DOWN));
+
+  prv_insert_tap_pref("qlSqueezeBackDown", true, &other_uuid);
+  cl_assert(!quick_launch_squeeze_is_enabled(BUTTON_ID_UP));
+  cl_assert(quick_launch_squeeze_is_enabled(BUTTON_ID_DOWN));
+
+  // An invalid UUID is never enabled.
+  const Uuid invalid_uuid = UUID_INVALID_INIT;
+  prv_insert_tap_pref("qlSqueezeBackDown", true, &invalid_uuid);
+  cl_assert(!quick_launch_squeeze_is_enabled(BUTTON_ID_DOWN));
 }
