@@ -173,4 +173,26 @@ bool workout_service_get_current_workout_info(int32_t *steps_out, int32_t *durat
                                               int32_t *distance_m_out, int32_t *current_bpm_out,
                                               HRZone *current_hr_zone_out);
 
+/** @brief The current workout, as copied by sys_workout_service_get_current(). */
+typedef struct WorkoutCurrentInfo {
+  /** ActivitySessionType of the workout, ActivitySessionType_None without one. */
+  uint8_t type;
+  /** Whether it is paused. */
+  bool paused;
+  uint16_t reserved;
+  /** Duration excluding pauses, in seconds. */
+  uint32_t duration_s;
+} WorkoutCurrentInfo;
+
+/**
+ * @brief DrewPebbleOS extension: copy the current workout (started in the Workout app) for an
+ * app.
+ *
+ * A syscall, so unprivileged apps (e.g. a watchface) may call it; @p out must be in app memory.
+ *
+ * @param[out] out The workout; zeroed without one.
+ * @return True if a workout is ongoing (paused or not).
+ */
+bool sys_workout_service_get_current(WorkoutCurrentInfo *out);
+
 /** @} */
