@@ -566,3 +566,39 @@ void test_music_endpoint__player_name_not_available(void) {
 
   cl_assert_equal_b(music_get_player_name(nullptr), false);
 }
+
+static void prv_assert_now_playing(const char *title, const char *artist) {
+  char t[MUSIC_BUFFER_LENGTH], a[MUSIC_BUFFER_LENGTH];
+  music_get_now_playing(t, a, NULL);
+  cl_assert_equal_s(t, title);
+  cl_assert_equal_s(a, artist);
+}
+
+#define NP(title, artist) music_update_now_playing(title, strlen(title), artist, strlen(artist), "", 0)
+
+void test_music_endpoint__spotify_connect_splits_title(void) {
+  const char *listening = "Listening on Drew's iPhone (2)";
+  NP("Raid \xE2\x80\xA2 Phil Berg", listening);
+  prv_assert_now_playing("Raid", "Phil Berg");
+
+  // Other separators, split on the last one.
+  NP("A \xC2\xB7 B \xE3\x83\xBB C", listening);
+  prv_assert_now_playing("A \xC2\xB7 B", "C");
+
+  // Not Connect, no separator, or an empty half: left as sent.
+  NP("Raid \xE2\x80\xA2 Phil Berg", "Phil Berg");
+  prv_assert_now_playing("Raid \xE2\x80\xA2 Phil Berg", "Phil Berg");
+  NP("Raid - Phil Berg", listening);
+  prv_assert_now_playing("Raid - Phil Berg", listening);
+  NP("Raid \xE2\x80\xA2 ", listening);
+  prv_assert_now_playing("Raid \xE2\x80\xA2 ", listening);
+
+  // Per-field updates (AMS), in either order.
+  music_update_track_artist("Phil Berg", 9);
+  music_update_track_title("Song \xE2\x80\xA2 Artist", 15);
+  prv_assert_now_playing("Song \xE2\x80\xA2 Artist", "Phil Berg");
+  music_update_track_artist(listening, strlen(listening));
+  prv_assert_now_playing("Song", "Artist");
+  music_update_track_title("Next \xE2\x80\xA2 Other", 14);
+  prv_assert_now_playing("Next", "Other");
+}
