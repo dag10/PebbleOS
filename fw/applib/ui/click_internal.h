@@ -64,6 +64,10 @@ void click_recognizer_handle_button_up(ClickRecognizer *recognizer);
 //! Tell the particular recognizer that the associated button has been pressed.
 void click_recognizer_handle_button_down(ClickRecognizer *recognizer);
 
+//! Like click_recognizer_handle_button_down(), for a button that has already been held for
+//! @p held_ms: the long click and hold-to-repeat timers start that much closer to firing.
+void click_recognizer_handle_button_down_held(ClickRecognizer *recognizer, uint32_t held_ms);
+
 //! Reset the state of a single recognizer, including timers.
 void click_recognizer_reset(ClickRecognizer *recognizer);
 
