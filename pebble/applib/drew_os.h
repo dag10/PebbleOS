@@ -20,7 +20,7 @@
 
 #define DREW_OS_PROBE_CATEGORY 0x44524557 /* 'DREW' */
 #define DREW_OS_MAGIC          "DrewPebbleOS"
-#define DREW_OS_API_VERSION    8
+#define DREW_OS_API_VERSION    9
 
 //! Bits for DrewOSInfo.capabilities
 typedef enum {
@@ -41,6 +41,10 @@ typedef enum {
   DREW_OS_CAP_WATCHFACE_HOLDS = (1 << 5),
   //! calendar_events is available (api_version >= 8)
   DREW_OS_CAP_CALENDAR = (1 << 6),
+  //! A watchface gets touch like any app: touch_service_subscribe(), and recognizers and the
+  //! touch-nav bridge after app_touch_navigation_enable(true) (api_version >= 9). It has no
+  //! field, and is unset without a touchscreen.
+  DREW_OS_CAP_WATCHFACE_TOUCH = (1 << 7),
 } DrewOSCapability;
 
 //! Latest heart rate sample, as returned by DrewOSInfo.hr_latest. Same layout as the firmware's
