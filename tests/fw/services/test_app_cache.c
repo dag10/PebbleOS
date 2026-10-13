@@ -75,6 +75,10 @@ AppInstallId quick_launch_combo_up_down_get_app(void) {
   return s_test_id_ql_down;
 }
 
+AppInstallId quick_launch_squeeze_get_app(ButtonId button) {
+  return (button == BUTTON_ID_UP) ? s_test_id_ql_up : s_test_id_ql_down;
+}
+
 AppInstallId watchface_get_default_install_id(void) {
   return s_test_id_watchface;
 }
