@@ -10,6 +10,7 @@ set(sources
   calendar.c
   calendar_layout.c
   calendar_layout_resources.c
+  drew_calendar.c
   event.c
   generic_layout.c
   health_layout.c
