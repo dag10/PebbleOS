@@ -183,6 +183,14 @@ static void prv_trim(const char **start, const char **end) {
   }
 }
 
+//! @return true if a space (or U+00A0) sits right before and after the separator at sep.
+static bool prv_is_spaced(const char *raw, const char *sep, size_t sep_length) {
+  const char *after = sep + sep_length;
+  const bool before = (sep - raw >= 1 && sep[-1] == ' ') ||
+                      (sep - raw >= 2 && !memcmp(sep - 2, "\xC2\xA0", 2));
+  return before && (*after == ' ' || !strncmp(after, "\xC2\xA0", 2));
+}
+
 //! Set title/artist from raw_title/raw_artist, splitting a Spotify Connect "<track> • <artist>"
 //! title back into its parts. Caller must hold the mutex.
 static void prv_derive_title_artist_locked(void) {
@@ -192,16 +200,21 @@ static void prv_derive_title_artist_locked(void) {
     return;
   }
 
-  // Split on the last separator: the track name is the likelier one to contain one.
+  // Split on the first spaced separator ("Raid • Phil Berg"), so an artist like "half•alive"
+  // stays whole; without one, fall back to the first separator.
   const char *raw = s_music_ctx.raw_title;
   const char *sep = NULL;
   size_t sep_length = 0;
-  for (size_t i = 0; i < ARRAY_LENGTH(s_connect_separators); i++) {
-    for (const char *p = strstr(raw, s_connect_separators[i]); p;
-         p = strstr(p + 1, s_connect_separators[i])) {
-      if (p > sep) {
-        sep = p;
-        sep_length = strlen(s_connect_separators[i]);
+  for (int spaced = 1; spaced >= 0 && !sep; spaced--) {
+    for (size_t i = 0; i < ARRAY_LENGTH(s_connect_separators); i++) {
+      const size_t length = strlen(s_connect_separators[i]);
+      for (const char *p = strstr(raw, s_connect_separators[i]); p && (!sep || p < sep);
+           p = strstr(p + 1, s_connect_separators[i])) {
+        if (!spaced || prv_is_spaced(raw, p, length)) {
+          sep = p;
+          sep_length = length;
+          break;
+        }
       }
     }
   }
