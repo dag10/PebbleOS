@@ -67,6 +67,10 @@ bool weather_layout_verify(bool existing_attributes[]) {
   return true;
 }
 
+const TimelineEventImpl *drew_calendar_get_event_service(void) {
+  return NULL;
+}
+
 const TimelineEventImpl *calendar_get_event_service(void) {
   return nullptr;
 }

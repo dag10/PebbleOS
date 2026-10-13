@@ -67,6 +67,10 @@ const TimelineEventImpl *timeline_peek_get_event_service(void) {
   return nullptr;
 }
 
+const TimelineEventImpl *drew_calendar_get_event_service(void) {
+  return NULL;
+}
+
 // Helpers
 ////////////////////////////////////////////////////////////////
 static bool s_in_calendar_event = false;
