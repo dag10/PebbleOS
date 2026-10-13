@@ -35,9 +35,9 @@ AppInstallId quick_launch_combo_up_down_get_app(void);
 void quick_launch_combo_up_down_set_app(AppInstallId app_id);
 void quick_launch_combo_up_down_set_enabled(bool enabled);
 
-//! Back+Up (@p button BUTTON_ID_UP) or Back+Down (BUTTON_ID_DOWN) pressed together: fires as
-//! soon as both are down, without the hold delay of the combos above.
-bool quick_launch_squeeze_is_enabled(ButtonId button);
-AppInstallId quick_launch_squeeze_get_app(ButtonId button);
-void quick_launch_squeeze_set_app(ButtonId button, AppInstallId app_id);
-void quick_launch_squeeze_set_enabled(ButtonId button, bool enabled);
+//! Back tapped together with @p button (BUTTON_ID_UP or BUTTON_ID_DOWN), once or, with
+//! @p double_tap, twice in a row.
+bool quick_launch_combo_tap_is_enabled(ButtonId button, bool double_tap);
+AppInstallId quick_launch_combo_tap_get_app(ButtonId button, bool double_tap);
+void quick_launch_combo_tap_set_app(ButtonId button, bool double_tap, AppInstallId app_id);
+void quick_launch_combo_tap_set_enabled(ButtonId button, bool double_tap, bool enabled);
