@@ -9,9 +9,9 @@
 typedef enum QuickLaunchGesture {
   QuickLaunchGestureTap,
   QuickLaunchGestureHold,
-  //! Back tapped together with the button (Up or Down).
+  //! Back tapped together with the button (Up, Down or Select).
   QuickLaunchGestureComboTap,
-  //! Back tapped together with the button (Up or Down) twice in a row.
+  //! Back tapped together with the button (Up, Down or Select) twice in a row.
   QuickLaunchGestureComboDoubleTap,
 } QuickLaunchGesture;
 
