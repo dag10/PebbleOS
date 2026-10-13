@@ -320,6 +320,22 @@ DEFINE_SYSCALL(uint32_t, sys_watchface_get_tap_buttons, void) {
   if (quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_DOWN)) {
     buttons |= (1 << BUTTON_ID_DOWN);
   }
+  if (quick_launch_single_click_is_sent_to_watchface(BUTTON_ID_BACK)) {
+    buttons |= (1 << BUTTON_ID_BACK);
+  }
+  return buttons;
+}
+
+//! DrewPebbleOS extension: the buttons (bit 1 << ButtonId) whose hold on the watchface goes to
+//! the watchface instead of Quick Launch. Exposed to apps through
+//! DrewOSInfo.watchface_hold_buttons.
+DEFINE_SYSCALL(uint32_t, sys_watchface_get_hold_buttons, void) {
+  uint32_t buttons = 0;
+  for (ButtonId button = 0; button < NUM_BUTTONS; button++) {
+    if (quick_launch_is_sent_to_watchface(button)) {
+      buttons |= (1 << button);
+    }
+  }
   return buttons;
 }
 

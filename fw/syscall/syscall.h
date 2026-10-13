@@ -293,8 +293,12 @@ uint32_t sys_process_get_launch_args(void);
 AppQuickLaunchAction sys_process_get_quick_launch_action(void);
 //! DrewPebbleOS extension: the buttons, as bits (1 << ButtonId), whose single press on the
 //! watchface is sent to the watchface app instead of Quick Launch (Settings -> Quick Launch ->
-//! Tap Up / Tap Down -> "Send to watchface"). Only Up and Down can be set.
+//! Tap Up / Tap Down / Tap Back -> "Send to watchface"). Select has no tap binding.
 uint32_t sys_watchface_get_tap_buttons(void);
+//! DrewPebbleOS extension: the buttons, as bits (1 << ButtonId), whose hold on the watchface is
+//! sent to the watchface app instead of Quick Launch (Settings -> Quick Launch -> Hold ... ->
+//! "Send to watchface").
+uint32_t sys_watchface_get_hold_buttons(void);
 AppExitReason sys_process_get_exit_reason(void);
 void sys_process_set_exit_reason(AppExitReason exit_reason);
 void sys_process_get_wakeup_info(WakeupInfo *info);
