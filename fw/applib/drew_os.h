@@ -20,7 +20,7 @@
 
 #define DREW_OS_PROBE_CATEGORY 0x44524557 /* 'DREW' */
 #define DREW_OS_MAGIC          "DrewPebbleOS"
-#define DREW_OS_API_VERSION    7
+#define DREW_OS_API_VERSION    8
 
 //! Bits for DrewOSInfo.capabilities
 typedef enum {
@@ -39,6 +39,8 @@ typedef enum {
   //! The firmware can send holds and Back taps to the watchface, and watchface_hold_buttons is
   //! available (api_version >= 7)
   DREW_OS_CAP_WATCHFACE_HOLDS = (1 << 5),
+  //! calendar_events is available (api_version >= 8)
+  DREW_OS_CAP_CALENDAR = (1 << 6),
 } DrewOSCapability;
 
 //! Latest heart rate sample, as returned by DrewOSInfo.hr_latest. Same layout as the firmware's
@@ -66,6 +68,29 @@ typedef struct DrewOSNowPlaying {
   uint8_t playback_state;
   uint8_t reserved[3];
 } DrewOSNowPlaying;
+
+//! One calendar event, as returned by DrewOSInfo.calendar_events. Same layout as the firmware's
+//! DrewCalendarEvent.
+typedef struct DrewOSCalendarEvent {
+  //! Start, UTC seconds; 0 if there is no such event
+  uint32_t start_utc;
+  //! Duration in minutes
+  uint16_t duration_m;
+  uint8_t flags;
+  uint8_t reserved;
+  //! Title, NUL terminated
+  char title[64];
+  //! Location name, NUL terminated, empty if none
+  char location[32];
+} DrewOSCalendarEvent;
+
+//! The events DrewOSInfo.calendar_events copies. Same layout as DrewCalendarEventsInfo.
+typedef struct DrewOSCalendarEvents {
+  //! The ongoing event that started last
+  DrewOSCalendarEvent current;
+  //! The event that starts next
+  DrewOSCalendarEvent next;
+} DrewOSCalendarEvents;
 
 typedef struct DrewOSInfo {
   //! DREW_OS_MAGIC, NUL padded
@@ -133,9 +158,18 @@ typedef struct DrewOSInfo {
   //! click fires that much sooner) and the button up on release. Points at the
   //! sys_watchface_get_hold_buttons syscall.
   uint32_t (*watchface_hold_buttons)(void);
+
+  // api_version >= 8, NULL without DREW_OS_CAP_CALENDAR
+
+  //! Copies the current calendar event (the ongoing one that started last) and the next one
+  //! (the earliest that hasn't started) from the timeline's calendar pins: timed ones only, not
+  //! all-day or dismissed. Returns false, with @p out zeroed, if there are neither. Points at
+  //! the sys_timeline_get_calendar_events syscall; @p out must be in app memory.
+  bool (*calendar_events)(DrewOSCalendarEvents *out);
 } DrewOSInfo;
 
-_Static_assert(sizeof(DrewOSInfo) == 56, "DrewOSInfo is ABI");
+_Static_assert(sizeof(DrewOSInfo) == 60, "DrewOSInfo is ABI");
+_Static_assert(sizeof(DrewOSCalendarEvent) == 104, "DrewOSCalendarEvent is ABI");
 _Static_assert(sizeof(DrewOSNowPlaying) == 196, "DrewOSNowPlaying is ABI");
 _Static_assert(sizeof(DrewOSHRSample) == 8, "DrewOSHRSample is ABI");
 
