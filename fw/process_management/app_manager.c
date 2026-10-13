@@ -30,6 +30,7 @@
 #include "resource/resource_ids.auto.h"
 #include "pbl/services/analytics/analytics.h"
 #include "pbl/services/compositor/compositor_transitions.h"
+#include "pbl/services/process_management/app_usage_storage.h"
 #include "pbl/services/i18n/i18n.h"
 #include "pbl/services/light.h"
 #include "pbl/services/app_inbox_service.h"
@@ -392,6 +393,15 @@ static bool prv_app_start(const PebbleProcessMd *app_md, const void *args,
   app_run_state_send_update(&app_md->uuid, RUNNING);
 
   system_app_state_machine_register_app_launch(s_app_task_context.install_id);
+
+#if !defined(CONFIG_RECOVERY_FW)
+  // Apps listed in the launcher count as used when they launch
+  if ((app_md->process_type == ProcessTypeApp) &&
+      ((app_md->visibility == ProcessVisibilityShown) ||
+       (app_md->visibility == ProcessVisibilityShownOnCommunication))) {
+    app_usage_storage_record(&app_md->uuid);
+  }
+#endif
 
   // Track per-watchface usage metrics
 #if !defined(CONFIG_RECOVERY_FW) && !defined(CONFIG_SHELL_SDK)
