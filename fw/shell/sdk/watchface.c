@@ -117,6 +117,10 @@ DEFINE_SYSCALL(uint32_t, sys_watchface_get_tap_buttons, void) {
   return 0;
 }
 
+DEFINE_SYSCALL(uint32_t, sys_watchface_get_hold_buttons, void) {
+  return 0;
+}
+
 void watchface_reset_click_manager(void) {
   WatchfaceData *data = &s_watchface_data;
   click_manager_reset(&data->click_manager);
