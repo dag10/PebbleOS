@@ -6,6 +6,13 @@
 #include <applib/ui/window.h>
 #include <shell/normal/quick_launch.h>
 
+typedef enum QuickLaunchGesture {
+  QuickLaunchGestureTap,
+  QuickLaunchGestureHold,
+  //! Back pressed together with the button (Up or Down).
+  QuickLaunchGestureSqueeze,
+} QuickLaunchGesture;
+
 typedef enum QuickLaunchMenuCategory {
   //! Entries that are only visible in Quick Launch, e.g. the system toggles.
   QuickLaunchMenuCategoryActions,
@@ -13,9 +20,12 @@ typedef enum QuickLaunchMenuCategory {
   QuickLaunchMenuCategoryApps,
 } QuickLaunchMenuCategory;
 
+//! The action or app bound to @p gesture of @p button, INSTALL_ID_INVALID if none.
+AppInstallId quick_launch_app_menu_get_app(QuickLaunchGesture gesture, ButtonId button);
+
+//! @param gesture Which of the button's bindings is being edited.
 //! @param button The button whose binding is being edited.
-//! @param is_tap Whether the binding is for a tap rather than a hold.
 //! @param category Which kind of target the menu lists.
-//! @param parent The category menu to unwind along with this one on selection.
-void quick_launch_app_menu_window_push(ButtonId button, bool is_tap,
+//! @param parent The category menu to unwind along with this one on selection, or NULL.
+void quick_launch_app_menu_window_push(QuickLaunchGesture gesture, ButtonId button,
                                        QuickLaunchMenuCategory category, Window *parent);

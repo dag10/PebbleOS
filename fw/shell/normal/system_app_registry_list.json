@@ -702,6 +702,21 @@
       "md_fn": "quick_launch_watchface_get_app_info"
     },
     {
+      "id": -151,
+      "enum": "QUICK_LAUNCH_MUSIC_PLAY_PAUSE",
+      "md_fn": "quick_launch_music_play_pause_get_app_info"
+    },
+    {
+      "id": -152,
+      "enum": "QUICK_LAUNCH_MUSIC_NEXT_TRACK",
+      "md_fn": "quick_launch_music_next_track_get_app_info"
+    },
+    {
+      "id": -153,
+      "enum": "QUICK_LAUNCH_MUSIC_PREVIOUS_TRACK",
+      "md_fn": "quick_launch_music_previous_track_get_app_info"
+    },
+    {
       "id": -102,
       "enum": "TOUCH_TOGGLE",
       "md_fn": "touch_toggle_get_app_info",
