@@ -20,7 +20,7 @@
 
 #define DREW_OS_PROBE_CATEGORY 0x44524557 /* 'DREW' */
 #define DREW_OS_MAGIC          "DrewPebbleOS"
-#define DREW_OS_API_VERSION    9
+#define DREW_OS_API_VERSION    10
 
 //! Bits for DrewOSInfo.capabilities
 typedef enum {
@@ -45,6 +45,8 @@ typedef enum {
   //! touch-nav bridge after app_touch_navigation_enable(true) (api_version >= 9). It has no
   //! field, and is unset without a touchscreen.
   DREW_OS_CAP_WATCHFACE_TOUCH = (1 << 7),
+  //! workout_current is available (api_version >= 10)
+  DREW_OS_CAP_WORKOUT = (1 << 8),
 } DrewOSCapability;
 
 //! Latest heart rate sample, as returned by DrewOSInfo.hr_latest. Same layout as the firmware's
@@ -95,6 +97,18 @@ typedef struct DrewOSCalendarEvents {
   //! The event that starts next
   DrewOSCalendarEvent next;
 } DrewOSCalendarEvents;
+
+//! The current workout, as returned by DrewOSInfo.workout_current. Same layout as the firmware's
+//! WorkoutCurrentInfo.
+typedef struct DrewOSWorkout {
+  //! ActivitySessionType: 0 none, 5 walk, 6 run, 7 open workout
+  uint8_t type;
+  //! Whether it is paused
+  bool paused;
+  uint16_t reserved;
+  //! Duration excluding pauses, in seconds
+  uint32_t duration_s;
+} DrewOSWorkout;
 
 typedef struct DrewOSInfo {
   //! DREW_OS_MAGIC, NUL padded
@@ -170,9 +184,17 @@ typedef struct DrewOSInfo {
   //! all-day or dismissed. Returns false, with @p out zeroed, if there are neither. Points at
   //! the sys_timeline_get_calendar_events syscall; @p out must be in app memory.
   bool (*calendar_events)(DrewOSCalendarEvents *out);
+
+  // api_version >= 10, NULL without DREW_OS_CAP_WORKOUT
+
+  //! Copies the workout started in the Workout app (the one the launcher's Workout glance shows),
+  //! paused or not. Returns false, with @p out zeroed, without one. Points at the
+  //! sys_workout_service_get_current syscall; @p out must be in app memory.
+  bool (*workout_current)(DrewOSWorkout *out);
 } DrewOSInfo;
 
-_Static_assert(sizeof(DrewOSInfo) == 60, "DrewOSInfo is ABI");
+_Static_assert(sizeof(DrewOSInfo) == 64, "DrewOSInfo is ABI");
+_Static_assert(sizeof(DrewOSWorkout) == 8, "DrewOSWorkout is ABI");
 _Static_assert(sizeof(DrewOSCalendarEvent) == 104, "DrewOSCalendarEvent is ABI");
 _Static_assert(sizeof(DrewOSNowPlaying) == 196, "DrewOSNowPlaying is ABI");
 _Static_assert(sizeof(DrewOSHRSample) == 8, "DrewOSHRSample is ABI");

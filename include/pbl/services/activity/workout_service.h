@@ -218,4 +218,26 @@ bool workout_service_get_current_workout_metrics(WorkoutServiceMetrics *metrics_
  */
 void workout_service_handle_spo2(uint8_t percent);
 
+/** @brief The current workout, as copied by sys_workout_service_get_current(). */
+typedef struct WorkoutCurrentInfo {
+  /** ActivitySessionType of the workout, ActivitySessionType_None without one. */
+  uint8_t type;
+  /** Whether it is paused. */
+  bool paused;
+  uint16_t reserved;
+  /** Duration excluding pauses, in seconds. */
+  uint32_t duration_s;
+} WorkoutCurrentInfo;
+
+/**
+ * @brief DrewPebbleOS extension: copy the current workout (started in the Workout app) for an
+ * app.
+ *
+ * A syscall, so unprivileged apps (e.g. a watchface) may call it; @p out must be in app memory.
+ *
+ * @param[out] out The workout; zeroed without one.
+ * @return True if a workout is ongoing (paused or not).
+ */
+bool sys_workout_service_get_current(WorkoutCurrentInfo *out);
+
 /** @} */

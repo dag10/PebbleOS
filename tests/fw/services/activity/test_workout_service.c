@@ -1,6 +1,8 @@
 /* SPDX-FileCopyrightText: 2024 Google LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <string.h>
+
 #include <pbl/services/activity/activity.h>
 #include <pbl/services/activity/activity_calculators.h>
 #include <pbl/services/activity/workout_service.h>
@@ -258,6 +260,31 @@ void test_workout_service__basic(void) {
   cl_assert(workout_service_stop_workout());
   cl_assert(
       !workout_service_get_current_workout_info(&steps, &duration_s, &distance_m, &bpm, &hr_zone));
+}
+
+// ---------------------------------------------------------------------------------------
+void test_workout_service__get_current_syscall(void) {
+  WorkoutCurrentInfo info;
+  memset(&info, 0xff, sizeof(info));
+  cl_assert(!sys_workout_service_get_current(&info));
+  cl_assert_equal_i(info.type, ActivitySessionType_None);
+  cl_assert(!info.paused);
+  cl_assert_equal_i(info.duration_s, 0);
+
+  cl_assert(workout_service_start_workout(ActivitySessionType_Open));
+  prv_inc_time(90);
+  cl_assert(sys_workout_service_get_current(&info));
+  cl_assert_equal_i(info.type, ActivitySessionType_Open);
+  cl_assert(!info.paused);
+  cl_assert_equal_i(info.duration_s, 90);
+
+  cl_assert(workout_service_pause_workout(true));
+  cl_assert(sys_workout_service_get_current(&info));
+  cl_assert(info.paused);
+
+  cl_assert(workout_service_stop_workout());
+  cl_assert(!sys_workout_service_get_current(&info));
+  cl_assert_equal_i(info.type, ActivitySessionType_None);
 }
 
 // ---------------------------------------------------------------------------------------
