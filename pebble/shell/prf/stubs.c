@@ -54,6 +54,10 @@ uint32_t sys_watchface_get_tap_buttons(void) {
   return 0;
 }
 
+uint32_t sys_watchface_get_hold_buttons(void) {
+  return 0;
+}
+
 void app_idle_timeout_refresh(void) {
 }
 
