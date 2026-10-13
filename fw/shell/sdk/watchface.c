@@ -117,6 +117,10 @@ PBL_SYSCALL(uint32_t, sys_watchface_get_tap_buttons) {
   return 0;
 }
 
+PBL_SYSCALL(uint32_t, sys_watchface_get_hold_buttons) {
+  return 0;
+}
+
 void watchface_reset_click_manager(void) {
   WatchfaceData *data = &s_watchface_data;
   click_manager_reset(&data->click_manager);
