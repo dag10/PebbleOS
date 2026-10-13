@@ -100,6 +100,50 @@ PBL_T_STATIC int prv_app_node_comparator(void *app_node_ref, void *new_node_ref)
   }
 }
 
+//! Compares names ignoring ASCII case
+static int prv_name_compare(const char *a, const char *b) {
+  for (;; a++, b++) {
+    const int ca = ((*a >= 'A') && (*a <= 'Z')) ? (*a - 'A' + 'a') : (unsigned char)*a;
+    const int cb = ((*b >= 'A') && (*b <= 'Z')) ? (*b - 'A' + 'a') : (unsigned char)*b;
+    if ((ca != cb) || (ca == '\0')) {
+      return ca - cb;
+    }
+  }
+}
+
+PBL_T_STATIC int prv_recently_used_comparator(void *app_node_ref, void *new_node_ref) {
+  const AppMenuNode *app_node = app_node_ref;
+  const AppMenuNode *new_node = new_node_ref;
+  if (app_node->last_used != new_node->last_used) {
+    // Most recent first; never used (0) sorts last
+    return (new_node->last_used > app_node->last_used) ? -1 : 1;
+  }
+  return prv_app_node_comparator(app_node_ref, new_node_ref);
+}
+
+PBL_T_STATIC int prv_alphabetical_comparator(void *app_node_ref, void *new_node_ref) {
+  const AppMenuNode *app_node = app_node_ref;
+  const AppMenuNode *new_node = new_node_ref;
+  const int name_cmp_rv = prv_name_compare(new_node->name, app_node->name);
+  if (name_cmp_rv) {
+    return name_cmp_rv;
+  }
+  return prv_app_node_comparator(app_node_ref, new_node_ref);
+}
+
+static Comparator prv_get_comparator(const AppMenuDataSource *source) {
+  switch (source->sort_mode) {
+    case AppMenuSortMode_RecentlyUsed:
+      return prv_recently_used_comparator;
+    case AppMenuSortMode_Alphabetical:
+      return prv_alphabetical_comparator;
+    case AppMenuSortMode_Default:
+    case AppMenuSortModeCount:
+      break;
+  }
+  return prv_app_node_comparator;
+}
+
 static void prv_set_storage_order(AppMenuDataSource *source, AppMenuNode *menu_node,
                                   AppMenuOrderStorage *storage, bool update_and_take_ownership) {
   if (!storage) {
@@ -150,8 +194,17 @@ static void prv_sorted_add(AppMenuDataSource *source, AppMenuNode *menu_node) {
     menu_node->storage_order = AppMenuStorageOrder_SettingsDefaultOrder;
   }
 
+  if (source->sort_mode == AppMenuSortMode_RecentlyUsed) {
+    // As with the order above, read the usage only if we're not building the whole list
+    AppUsageList *usage = source->usage ?: app_usage_storage_read();
+    menu_node->last_used = app_usage_list_get_last_used(usage, &menu_node->uuid);
+    if (!source->usage) {
+      app_free(usage);
+    }
+  }
+
   source->list = (AppMenuNode *)list_sorted_add(&source->list->node, &menu_node->node,
-                                                prv_app_node_comparator, true /* ascending */);
+                                                prv_get_comparator(source), true /* ascending */);
 }
 
 ////////////////////////////////
@@ -346,11 +399,19 @@ static void prv_load_list_if_needed(AppMenuDataSource *source) {
   PBL_ASSERTN(!source->order_storage);
   source->order_storage = app_order_read_order();
 
+  if (source->sort_mode == AppMenuSortMode_RecentlyUsed) {
+    source->usage = app_usage_storage_read();
+  }
+
   app_install_enumerate_entries(prv_app_enumerate_callback, source);
 
   if (source->order_storage != nullptr) {
     app_free(source->order_storage);
     source->order_storage = nullptr;
+  }
+  if (source->usage != NULL) {
+    app_free(source->usage);
+    source->usage = NULL;
   }
 }
 
@@ -464,6 +525,39 @@ void app_menu_data_source_deinit(AppMenuDataSource *source) {
 
   source->callbacks.changed = nullptr;
   source->is_list_loaded = false;
+}
+
+void app_menu_data_source_set_sort_mode(AppMenuDataSource *source, AppMenuSortMode sort_mode) {
+  if (sort_mode >= AppMenuSortModeCount) {
+    sort_mode = AppMenuSortMode_Default;
+  }
+  if (source->sort_mode == sort_mode) {
+    return;
+  }
+  source->sort_mode = sort_mode;
+  if (!source->is_list_loaded) {
+    return;
+  }
+
+  AppUsageList *usage =
+      (sort_mode == AppMenuSortMode_RecentlyUsed) ? app_usage_storage_read() : NULL;
+
+  // Re-insert every node with the new comparator
+  AppMenuNode *node = source->list;
+  source->list = NULL;
+  while (node) {
+    AppMenuNode *const next = (AppMenuNode *)list_get_next((ListNode *)node);
+    node->node = (ListNode){0};
+    if (sort_mode == AppMenuSortMode_RecentlyUsed) {
+      node->last_used = app_usage_list_get_last_used(usage, &node->uuid);
+    }
+    source->list = (AppMenuNode *)list_sorted_add(&source->list->node, &node->node,
+                                                  prv_get_comparator(source), true /* ascending */);
+    node = next;
+  }
+  app_free(usage);
+
+  prv_alert_data_source_changed(source);
 }
 
 void app_menu_data_source_enable_icons(AppMenuDataSource *source, uint32_t fallback_icon_id) {
