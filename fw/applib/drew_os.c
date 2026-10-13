@@ -38,13 +38,19 @@ _Static_assert(MUSIC_BUFFER_LENGTH == 64, "DrewOSNowPlaying strings are MUSIC_BU
 #define DREW_OS_MUSIC_CAPS 0
 #endif
 
+#ifdef CONFIG_TOUCH
+#define DREW_OS_TOUCH_CAPS DREW_OS_CAP_WATCHFACE_TOUCH
+#else
+#define DREW_OS_TOUCH_CAPS 0
+#endif
+
 static const DrewOSInfo s_drew_os_info = {
   .magic = DREW_OS_MAGIC,
   .api_version = DREW_OS_API_VERSION,
   .size = sizeof(DrewOSInfo),
   .capabilities = DREW_OS_CAP_APP_WAKEUP | DREW_OS_CAP_APP_GLANCE | DREW_OS_CAP_WATCHFACE_BUTTONS |
                   DREW_OS_HR_CAPS | DREW_OS_MUSIC_CAPS | DREW_OS_CAP_WATCHFACE_HOLDS |
-                  DREW_OS_CALENDAR_CAPS,
+                  DREW_OS_CALENDAR_CAPS | DREW_OS_TOUCH_CAPS,
   .fw_version = TINTIN_METADATA.version_tag,
   .app_next_wakeup = sys_wakeup_get_next_for_app,
   .app_glance_subtitle = sys_app_glance_get_current_subtitle,
