@@ -1,8 +1,11 @@
 /* SPDX-FileCopyrightText: 2024 Google LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <string.h>
+
 #include <pbl/kernel/malloc.h>
 #include <pbl/kernel/mutex.h>
+#include <pbl/kernel/syscall.h>
 #include <pbl/kernel/time.h>
 #include <pbl/logging/logging.h>
 #include <pbl/services/activity/activity_algorithm.h>
@@ -709,6 +712,20 @@ bool workout_service_get_current_workout_metrics(WorkoutServiceMetrics *metrics_
   }
   prv_unlock();
   return wrkt != nullptr;
+}
+
+PBL_SYSCALL(bool, sys_workout_service_get_current, (OUT, WorkoutCurrentInfo *, out)) {
+  memset(out, 0, sizeof(*out));
+  prv_lock();
+  const CurrentWorkoutData *workout = s_workout_data.current_workout;
+  const bool ongoing = (workout != NULL);
+  if (ongoing) {
+    out->type = workout->type;
+    out->paused = workout->paused;
+    out->duration_s = (uint32_t)workout->duration_s;
+  }
+  prv_unlock();
+  return ongoing;
 }
 
 #if UNITTEST
