@@ -20,7 +20,7 @@
 
 #define DREW_OS_PROBE_CATEGORY 0x44524557 /* 'DREW' */
 #define DREW_OS_MAGIC          "DrewPebbleOS"
-#define DREW_OS_API_VERSION    6
+#define DREW_OS_API_VERSION    7
 
 //! Bits for DrewOSInfo.capabilities
 typedef enum {
@@ -36,6 +36,9 @@ typedef enum {
   DREW_OS_CAP_HEART_RATE = (1 << 3),
   //! music_now_playing is available (api_version >= 6)
   DREW_OS_CAP_MUSIC = (1 << 4),
+  //! The firmware can send holds and Back taps to the watchface, and watchface_hold_buttons is
+  //! available (api_version >= 7)
+  DREW_OS_CAP_WATCHFACE_HOLDS = (1 << 5),
 } DrewOSCapability;
 
 //! Latest heart rate sample, as returned by DrewOSInfo.hr_latest. Same layout as the firmware's
@@ -97,8 +100,8 @@ typedef struct DrewOSInfo {
 
   //! The buttons, as bits (1 << ButtonId), whose single press on the watchface is sent to
   //! the running watchface's click handlers instead of Quick Launch: Settings -> Quick
-  //! Launch -> Tap Up / Tap Down -> "Send to watchface". Only BUTTON_ID_UP and
-  //! BUTTON_ID_DOWN can be set. Holds, combos, Select and Back always stay with the system.
+  //! Launch -> Tap Up / Tap Down / Tap Back -> "Send to watchface". BUTTON_ID_BACK can only be
+  //! set from api_version 7, and BUTTON_ID_SELECT never. Combos always stay with the system.
   //! Points at the sys_watchface_get_tap_buttons syscall.
   uint32_t (*watchface_buttons)(void);
 
@@ -121,9 +124,18 @@ typedef struct DrewOSInfo {
   //! with @p out zeroed, if no title or artist is known. Points at the
   //! sys_music_get_now_playing_info syscall; @p out must be in app memory.
   bool (*music_now_playing)(DrewOSNowPlaying *out);
+
+  // api_version >= 7
+
+  //! The buttons, as bits (1 << ButtonId), whose hold on the watchface is sent to the running
+  //! watchface instead of Quick Launch: Settings -> Quick Launch -> Hold ... -> "Send to
+  //! watchface". The face gets a button down already held for the 400 ms hold delay (its long
+  //! click fires that much sooner) and the button up on release. Points at the
+  //! sys_watchface_get_hold_buttons syscall.
+  uint32_t (*watchface_hold_buttons)(void);
 } DrewOSInfo;
 
-_Static_assert(sizeof(DrewOSInfo) == 52, "DrewOSInfo is ABI");
+_Static_assert(sizeof(DrewOSInfo) == 56, "DrewOSInfo is ABI");
 _Static_assert(sizeof(DrewOSNowPlaying) == 196, "DrewOSNowPlaying is ABI");
 _Static_assert(sizeof(DrewOSHRSample) == 8, "DrewOSHRSample is ABI");
 

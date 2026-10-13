@@ -31,7 +31,7 @@ static const DrewOSInfo s_drew_os_info = {
   .api_version = DREW_OS_API_VERSION,
   .size = sizeof(DrewOSInfo),
   .capabilities = DREW_OS_CAP_APP_WAKEUP | DREW_OS_CAP_APP_GLANCE | DREW_OS_CAP_WATCHFACE_BUTTONS |
-                  DREW_OS_HR_CAPS | DREW_OS_MUSIC_CAPS,
+                  DREW_OS_HR_CAPS | DREW_OS_MUSIC_CAPS | DREW_OS_CAP_WATCHFACE_HOLDS,
   .fw_version = TINTIN_METADATA.version_tag,
   .app_next_wakeup = sys_wakeup_get_next_for_app,
   .app_glance_subtitle = sys_app_glance_get_current_subtitle,
@@ -43,6 +43,7 @@ static const DrewOSInfo s_drew_os_info = {
 #ifdef CONFIG_SERVICE_MUSIC
   .music_now_playing = (bool (*)(DrewOSNowPlaying *))sys_music_get_now_playing_info,
 #endif
+  .watchface_hold_buttons = sys_watchface_get_hold_buttons,
 };
 
 const DrewOSInfo *drew_os_get_info(void) {
