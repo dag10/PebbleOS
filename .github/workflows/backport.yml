@@ -1,8 +1,7 @@
 name: Backport
 
 on:
-  pull_request_target:
-    types: [closed, labeled]
+  workflow_dispatch:
 
 permissions:
   contents: write
