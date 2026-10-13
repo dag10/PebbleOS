@@ -24,6 +24,24 @@ pbl_clar_test(test_calendar
   OVERRIDES dummy_board
 )
 
+pbl_clar_test(test_drew_calendar
+  SOURCES
+    pebble/services/blob_db/pin_db.c
+    pebble/services/blob_db/timeline_item_storage.c
+    pebble/services/timeline/attribute.c
+    pebble/services/timeline/attribute_group.c
+    pebble/services/timeline/attributes_actions.c
+    pebble/services/timeline/drew_calendar.c
+    pebble/services/timeline/event.c
+    pebble/services/timeline/item.c
+    pebble/services/timeline/timeline.c
+    pebble/services/clock/time.c
+    tests/fakes/fake_events.c
+    tests/fakes/fake_rtc.c
+    tests/fakes/fake_settings.c
+  OVERRIDES dummy_board
+)
+
 pbl_clar_test(test_timeline_peek_event
   MODULES timeline_item time
   SOURCES
