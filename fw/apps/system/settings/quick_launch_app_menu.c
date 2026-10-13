@@ -24,7 +24,7 @@
 typedef struct {
   AppMenuDataSource data_source;
   ButtonId button;
-  bool is_tap;
+  QuickLaunchGesture gesture;
   QuickLaunchMenuCategory category;
   Window *parent;
   OptionMenu *option_menu;
@@ -39,6 +39,49 @@ static const char *s_category_titles[] = {
   /// Title of the Quick Launch menu listing the installed apps.
   [QuickLaunchMenuCategoryApps] = i18n_noop("Apps"),
 };
+
+AppInstallId quick_launch_app_menu_get_app(QuickLaunchGesture gesture, ButtonId button) {
+  switch (gesture) {
+    case QuickLaunchGestureTap:
+      return quick_launch_single_click_get_app(button);
+    case QuickLaunchGestureHold:
+      return quick_launch_get_app(button);
+    case QuickLaunchGestureSqueeze:
+      return quick_launch_squeeze_get_app(button);
+  }
+  return INSTALL_ID_INVALID;
+}
+
+static void prv_set_app(QuickLaunchAppMenuData *data, AppInstallId app_id) {
+  switch (data->gesture) {
+    case QuickLaunchGestureTap:
+      quick_launch_single_click_set_app(data->button, app_id);
+      break;
+    case QuickLaunchGestureHold:
+      quick_launch_set_app(data->button, app_id);
+      break;
+    case QuickLaunchGestureSqueeze:
+      quick_launch_squeeze_set_app(data->button, app_id);
+      break;
+  }
+}
+
+static void prv_unassign(QuickLaunchAppMenuData *data) {
+  switch (data->gesture) {
+    case QuickLaunchGestureTap:
+      quick_launch_single_click_set_app(data->button, INSTALL_ID_INVALID);
+      quick_launch_single_click_set_enabled(data->button, false);
+      break;
+    case QuickLaunchGestureHold:
+      quick_launch_set_app(data->button, INSTALL_ID_INVALID);
+      quick_launch_set_enabled(data->button, false);
+      break;
+    case QuickLaunchGestureSqueeze:
+      quick_launch_squeeze_set_app(data->button, INSTALL_ID_INVALID);
+      quick_launch_squeeze_set_enabled(data->button, false);
+      break;
+  }
+}
 
 //! Row 0 when nothing is bound, the matching entry when it is in this category, and no
 //! selection at all when the button is bound to something in the other category.
@@ -74,14 +117,22 @@ static bool prv_app_filter_callback(struct AppMenuDataSource *source, AppInstall
     return false;
   }
 
-  // "Send to watchface" passes a single press on to the watchface; holds have no
-  // watchface counterpart, so it is a tap-only action.
-  if (!data->is_tap && (entry->install_id == APP_ID_QUICK_LAUNCH_WATCHFACE)) {
+  const bool is_tap = (data->gesture == QuickLaunchGestureTap);
+
+  // Tap Back offers nothing but "Send to watchface"; unassigned, it dismisses the timeline peek.
+  if (is_tap && (data->button == BUTTON_ID_BACK)) {
+    return (entry->install_id == APP_ID_QUICK_LAUNCH_WATCHFACE);
+  }
+
+  // "Send to watchface" passes a tap or a hold of one button on to the watchface; a squeeze
+  // has no watchface counterpart.
+  if ((data->gesture == QuickLaunchGestureSqueeze) &&
+      (entry->install_id == APP_ID_QUICK_LAUNCH_WATCHFACE)) {
     return false;
   }
 
   // For tap buttons, filter Timeline apps based on button
-  if (data->is_tap) {
+  if (is_tap) {
     if (data->button == BUTTON_ID_UP) {
       // Tap Up: Only show Timeline Past, hide Timeline Future and Timeline Full
       if (uuid_equal(&entry->uuid, &timeline_future_uuid)) {
@@ -129,24 +180,16 @@ static void prv_menu_select(OptionMenu *option_menu, int selection, void *contex
 
   QuickLaunchAppMenuData *data = context;
   if (selection == 0) {
-    if (data->is_tap) {
-      quick_launch_single_click_set_app(data->button, INSTALL_ID_INVALID);
-      quick_launch_single_click_set_enabled(data->button, false);
-    } else {
-      quick_launch_set_app(data->button, INSTALL_ID_INVALID);
-      quick_launch_set_enabled(data->button, false);
-    }
+    prv_unassign(data);
   } else {
     AppMenuNode *app_menu_node =
         app_menu_data_source_get_node_at_index(&data->data_source, selection - NUM_CUSTOM_CELLS);
-    if (data->is_tap) {
-      quick_launch_single_click_set_app(data->button, app_menu_node->install_id);
-    } else {
-      quick_launch_set_app(data->button, app_menu_node->install_id);
-    }
+    prv_set_app(data, app_menu_node->install_id);
   }
   // Unwind the category menu too, so that selecting returns to the Quick Launch settings.
-  app_window_stack_remove(data->parent, false);
+  if (data->parent) {
+    app_window_stack_remove(data->parent, false);
+  }
   app_window_stack_pop(true);
 }
 
@@ -164,11 +207,11 @@ static void prv_menu_unload(OptionMenu *option_menu, void *context) {
   app_free(data);
 }
 
-void quick_launch_app_menu_window_push(ButtonId button, bool is_tap,
+void quick_launch_app_menu_window_push(QuickLaunchGesture gesture, ButtonId button,
                                        QuickLaunchMenuCategory category, Window *parent) {
   QuickLaunchAppMenuData *data = app_zalloc_check(sizeof(*data));
   data->button = button;
-  data->is_tap = is_tap;
+  data->gesture = gesture;
   data->category = category;
   data->parent = parent;
 
@@ -182,8 +225,7 @@ void quick_launch_app_menu_window_push(ButtonId button, bool is_tap,
                             },
                             data);
 
-  const AppInstallId install_id =
-      is_tap ? quick_launch_single_click_get_app(button) : quick_launch_get_app(button);
+  const AppInstallId install_id = quick_launch_app_menu_get_app(gesture, button);
   const uint16_t app_index =
       app_menu_data_source_get_index_of_app_with_install_id(&data->data_source, install_id);
 
