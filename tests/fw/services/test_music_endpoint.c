@@ -581,9 +581,17 @@ void test_music_endpoint__spotify_connect_splits_title(void) {
   NP("Raid \xE2\x80\xA2 Phil Berg", listening);
   prv_assert_now_playing("Raid", "Phil Berg");
 
-  // Other separators, split on the last one.
-  NP("A \xC2\xB7 B \xE3\x83\xBB C", listening);
-  prv_assert_now_playing("A \xC2\xB7 B", "C");
+  // Other separators, split on the first spaced one.
+  NP("A \xE3\x83\xBB B \xC2\xB7 C", listening);
+  prv_assert_now_playing("A", "B \xC2\xB7 C");
+
+  // An unspaced separator in the artist stays whole.
+  NP("The Wonder \xE2\x80\xA2 half\xE2\x80\xA2" "alive", listening);
+  prv_assert_now_playing("The Wonder", "half\xE2\x80\xA2" "alive");
+
+  // Without a spaced separator, split on the first unspaced one.
+  NP("A\xE2\x80\xA2" "B\xC2\xB7" "C", listening);
+  prv_assert_now_playing("A", "B\xC2\xB7" "C");
 
   // Not Connect, no separator, or an empty half: left as sent.
   NP("Raid \xE2\x80\xA2 Phil Berg", "Phil Berg");
