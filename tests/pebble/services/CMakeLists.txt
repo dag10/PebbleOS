@@ -331,6 +331,7 @@ pbl_clar_test(test_app_menu_data_source
     pebble/services/process_management/app_file.c
     pebble/services/process_management/app_order_storage.c
     pebble/services/process_management/app_storage.c
+    pebble/services/process_management/app_usage_storage.c
     tests/fakes/fake_rtc.c
     tests/fakes/fake_system_app_registry_apps.c
     tests/fixtures/resources/builtin_resources.auto.c

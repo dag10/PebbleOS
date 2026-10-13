@@ -336,3 +336,14 @@ void shell_prefs_set_dark_mode(DarkMode mode);
 
 void shell_prefs_get_dark_mode_schedule(DarkModeSchedule *schedule_out);
 void shell_prefs_set_dark_mode_schedule(const DarkModeSchedule *schedule);
+
+//! Order of the apps in the launcher, chosen by holding Back in it
+typedef enum LauncherSortMode {
+  LauncherSortMode_Default,
+  LauncherSortMode_RecentlyUsed,
+  LauncherSortMode_Alphabetical,
+  LauncherSortModeCount,
+} LauncherSortMode;
+
+LauncherSortMode shell_prefs_get_launcher_sort_mode(void);
+void shell_prefs_set_launcher_sort_mode(LauncherSortMode mode);
