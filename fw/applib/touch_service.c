@@ -14,16 +14,14 @@
 #include <system/passert.h>
 
 //! @return the per-task touch service state, or NULL if the current task is
-//! not permitted to use the touch service (e.g. background workers, or
-//! watchfaces). Callers must no-op when this returns NULL.
+//! not permitted to use the touch service (background workers). Callers must
+//! no-op when this returns NULL.
 static TouchServiceState *prv_get_state(void) {
   PebbleTask task = pebble_task_get_current();
   switch (task) {
     case PebbleTask_App:
-      // Touch is reserved for watchapps; watchfaces must not consume it.
-      if (sys_app_is_watchface()) {
-        return nullptr;
-      }
+      // Watchfaces too: the touch session gate already marks unarmed contact
+      // on the idle watchface non_navigational.
       return app_state_get_touch_service_state();
     case PebbleTask_KernelMain:
       return kernel_applib_get_touch_service_state();

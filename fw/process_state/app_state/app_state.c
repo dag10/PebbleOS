@@ -24,6 +24,7 @@
 #include <process_management/app_manager.h>
 #include <process_management/process_loader.h>
 #include <process_state/app_state/app_state.h>
+#include <syscall/syscall.h>
 #include <system/passert.h>
 #include <tinymt32.h>
 
@@ -209,6 +210,10 @@ static bool prv_app_touch_nav_top_bridge_disabled(void *ctx) {
 }
 
 static void prv_app_touch_nav_pop_top(void *ctx) {
+  // Like the Back button, a swipe can't dismiss a watchface's root window: that would kill it.
+  if (sys_app_is_watchface() && app_window_stack_count() <= 1) {
+    return;
+  }
   window_stack_pop_with_transition(app_state_get_window_stack(),
                                    nullptr /* default pop transition */);
 }
@@ -241,7 +246,6 @@ static bool prv_app_twin_master_enabled(void *ctx) {
 }
 
 static void prv_app_twin_install_handler(void *ctx) {
-  // touch_service_set_system_handler also no-ops for watchfaces, so they never receive emulation.
   touch_service_set_system_handler(touch_nav_dispatch, &s_app_state_ptr->touch_nav_state);
   // Mark the app twin live so the dispatch gate and touch-driven backlight treat this app as
   // navigating even when system nav (the Touch Navigation sub-pref) is off.
@@ -275,9 +279,10 @@ PBL_NOINLINE void app_state_init(void) {
   // Participate only when this is positively a system/built-in app (negative install id).
   // Third-party app-DB apps (positive id) and unresolved/INSTALL_ID_INVALID (0) are inert by
   // default and must opt in via app_touch_navigation_enable(), so the unsafe direction (unknown ->
-  // on) cannot happen.
+  // on) cannot happen. Watchfaces, built-in or not, also only get touch nav by opting in.
   s_app_state_ptr->touch_nav_participating =
-      app_install_id_from_system(app_manager_get_current_app_id());
+      app_install_id_from_system(app_manager_get_current_app_id()) &&
+      !app_manager_is_watchface_running();
   s_app_state_ptr->touch_nav_opted_in = false;
 #endif
 
@@ -317,8 +322,7 @@ PBL_NOINLINE void app_state_init(void) {
   touch_service_state_init(app_state_get_touch_service_state());
 
 #ifdef CONFIG_TOUCH
-  // Route this app's touch events through the nav bridge when the master pref is on. No-op for
-  // watchfaces (touch_service_set_system_handler declines them).
+  // Route this app's touch events through the nav bridge when the master pref is on.
   app_touch_nav_subscribe();
 #endif
 
