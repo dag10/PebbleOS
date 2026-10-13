@@ -280,6 +280,9 @@ const PebbleProcessMd *system_app_state_machine_get_last_registered_app(void) {
 void system_app_state_machine_register_app_launch(const PebbleProcessMd *app) {
 }
 
+void app_usage_storage_record(const Uuid *uuid) {
+}
+
 void sys_vibe_history_stop_collecting(void) {
 }
 

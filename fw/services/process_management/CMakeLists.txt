@@ -4,6 +4,7 @@
 set(sources
   app_file.c
   app_order_storage.c
+  app_usage_storage.c
   app_storage.c
   process_commands.c
   process_loader_storage.c
