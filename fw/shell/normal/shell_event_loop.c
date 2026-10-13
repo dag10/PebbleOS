@@ -1,6 +1,7 @@
 /* SPDX-FileCopyrightText: 2024 Google LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <pbl/drivers/rtc.h>
 #include <pbl/services/activity/activity.h>
 #include <pbl/services/activity/workout_service.h>
 #include <pbl/services/app_inbox_service.h>
@@ -11,6 +12,7 @@
 #include <pbl/services/music.h>
 #include <pbl/services/music_endpoint.h>
 #include <pbl/services/notifications/do_not_disturb.h>
+#include <pbl/services/process_management/app_usage_storage.h>
 #include <pbl/services/shared_prf_storage/shared_prf_storage.h>
 #include <pbl/services/stationary.h>
 #include <pbl/services/system_task.h>
@@ -33,6 +35,53 @@
 #include <shell/shell_event_loop.h>
 
 extern void shell_prefs_init(void);
+
+//! Music must have been stopped this long for playing to count as starting it, so a track change
+//! that briefly reports paused isn't a use of the Music app.
+#define MUSIC_START_MIN_STOPPED_MS (3000)
+
+static struct {
+  MusicPlayState state;
+  RtcTicks stopped_at;
+  //! The first state after a player connects is what was already going on, not a change
+  bool awaiting_first_state;
+} s_music_usage;
+
+static void prv_record_app_usage(AppInstallId app_id) {
+  Uuid uuid;
+  if (app_install_get_uuid_for_install_id(app_id, &uuid)) {
+    app_usage_storage_record(&uuid);
+  }
+}
+
+static bool prv_music_is_playing(MusicPlayState state) {
+  return (state == MusicPlayStatePlaying) || (state == MusicPlayStateForwarding) ||
+         (state == MusicPlayStateRewinding);
+}
+
+//! Music starting to play counts as using the Music app, even while it's closed
+static void prv_handle_media_event_usage(const PebbleMediaEvent *event) {
+  if (event->type == PebbleMediaEventTypeServerConnected) {
+    s_music_usage.awaiting_first_state = true;
+    return;
+  }
+  if (event->type != PebbleMediaEventTypePlaybackStateChanged) {
+    return;
+  }
+
+  const RtcTicks now = rtc_get_ticks();
+  const bool was_playing = prv_music_is_playing(s_music_usage.state);
+  const bool is_playing = prv_music_is_playing(event->playback_state);
+  if (is_playing && !was_playing && !s_music_usage.awaiting_first_state &&
+      ((now - s_music_usage.stopped_at) * 1000 / RTC_TICKS_HZ >= MUSIC_START_MIN_STOPPED_MS)) {
+    prv_record_app_usage(APP_ID_MUSIC);
+  }
+  if (!is_playing && (was_playing || s_music_usage.awaiting_first_state)) {
+    s_music_usage.stopped_at = now;
+  }
+  s_music_usage.state = event->playback_state;
+  s_music_usage.awaiting_first_state = false;
+}
 
 // Force-compact every growable settings DB on first boot after upgrade.
 // Pre-growable-files devices keep their original full-size settings file allocation forever
@@ -147,6 +196,7 @@ void shell_event_loop_handle_event(PebbleEvent *e) {
       return;
 
     case PEBBLE_MEDIA_EVENT:
+      prv_handle_media_event_usage(&e->media);
       if (e->media.playback_state == MusicPlayStatePlaying) {
         app_install_mark_prioritized(APP_ID_MUSIC, true /* can_expire */);
       }
@@ -168,6 +218,9 @@ void shell_event_loop_handle_event(PebbleEvent *e) {
       // Derive the pin from the workout state rather than the event type: closing the app while
       // the workout keeps running must not downgrade the pin to an expiring one.
       app_install_mark_prioritized(APP_ID_WORKOUT, !workout_service_is_workout_ongoing());
+      if (workout_e->type == PebbleWorkoutEvent_Started) {
+        prv_record_app_usage(APP_ID_WORKOUT);
+      }
       workout_service_workout_event_handler(workout_e);
       return;
     }

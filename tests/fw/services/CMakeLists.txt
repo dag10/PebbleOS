@@ -369,6 +369,7 @@ pbl_clar_test(test_app_menu_data_source
     fw/services/filesystem/pfs.c
     fw/services/process_management/app_order_storage.c
     fw/services/process_management/app_storage.c
+    fw/services/process_management/app_usage_storage.c
     fw/services/settings/settings_file.c
     fw/services/settings/settings_raw_iter.c
     fw/kernel/rand.c
