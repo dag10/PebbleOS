@@ -24,6 +24,9 @@
 
 #include "pbl/kernel/mutex.h"
 #include "pbl/util/testing.h"
+#include "syscall/syscall_internal.h"
+
+#include <string.h>
 
 PBL_LOG_MODULE_DECLARE(service_activity, CONFIG_SERVICE_ACTIVITY_LOG_LEVEL);
 
@@ -704,6 +707,23 @@ bool workout_service_get_current_workout_info(int32_t *steps_out, int32_t *durat
   }
   prv_unlock();
   return rv;
+}
+
+DEFINE_SYSCALL(bool, sys_workout_service_get_current, WorkoutCurrentInfo *out) {
+  if (PRIVILEGE_WAS_ELEVATED) {
+    syscall_assert_userspace_buffer(out, sizeof(*out));
+  }
+  memset(out, 0, sizeof(*out));
+  prv_lock();
+  const CurrentWorkoutData *workout = s_workout_data.current_workout;
+  const bool ongoing = (workout != NULL);
+  if (ongoing) {
+    out->type = workout->type;
+    out->paused = workout->paused;
+    out->duration_s = (uint32_t)workout->duration_s;
+  }
+  prv_unlock();
+  return ongoing;
 }
 
 #if UNITTEST
