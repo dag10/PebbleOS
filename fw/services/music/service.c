@@ -1,6 +1,8 @@
 /* SPDX-FileCopyrightText: 2024 Google LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <string.h>
+
 #include <pbl/drivers/rtc.h>
 #include <pbl/kernel/mutex.h>
 #include <pbl/kernel/types.h>
@@ -8,6 +10,7 @@
 #include <pbl/services/imaging.h>
 #include <pbl/services/music_internal.h>
 #include <pbl/util/math.h>
+#include <pbl/util/size.h>
 
 #include <applib/graphics/gtypes.h>
 #include <apps/system/music.h>
@@ -43,6 +46,11 @@ struct MusicServiceContext {
   char title[MUSIC_BUFFER_LENGTH];
   char artist[MUSIC_BUFFER_LENGTH];
   char album[MUSIC_BUFFER_LENGTH];
+
+  //! Title and artist as the server sent them. title/artist above are derived from these by
+  //! prv_derive_title_artist_locked().
+  char raw_title[MUSIC_BUFFER_LENGTH];
+  char raw_artist[MUSIC_BUFFER_LENGTH];
 
   uint32_t track_length_ms;
 
@@ -142,6 +150,77 @@ static void copy_and_truncate(char *dest, const char *src, size_t src_length) {
 static bool prv_str_differs(const char *dest, const char *src, size_t src_length) {
   size_t cropped_length = prv_utf8_crop_length(src, src_length);
   return (strlen(dest) != cropped_length) || (memcmp(dest, src, cropped_length) != 0);
+}
+
+//! Spotify Connect: while audio plays on another device, Spotify reports the artist as
+//! "Listening on <device>" and the title as "<track> • <artist>".
+#define CONNECT_ARTIST_PREFIX "Listening on "
+
+//! Separators accepted between track and artist: U+2022, U+00B7, U+2219, U+22C5, U+30FB, U+25CF.
+static const char *const s_connect_separators[] = {
+  "\xE2\x80\xA2", "\xC2\xB7", "\xE2\x88\x99", "\xE2\x8B\x85", "\xE3\x83\xBB", "\xE2\x97\x8F",
+};
+
+//! Trim spaces (ASCII whitespace and U+00A0) from both ends of [*start, *end).
+static void prv_trim(const char **start, const char **end) {
+  while (*start < *end) {
+    if (**start == ' ' || **start == '\t') {
+      (*start)++;
+    } else if (*end - *start >= 2 && !memcmp(*start, "\xC2\xA0", 2)) {
+      *start += 2;
+    } else {
+      break;
+    }
+  }
+  while (*end > *start) {
+    if ((*end)[-1] == ' ' || (*end)[-1] == '\t') {
+      (*end)--;
+    } else if (*end - *start >= 2 && !memcmp(*end - 2, "\xC2\xA0", 2)) {
+      *end -= 2;
+    } else {
+      break;
+    }
+  }
+}
+
+//! Set title/artist from raw_title/raw_artist, splitting a Spotify Connect "<track> • <artist>"
+//! title back into its parts. Caller must hold the mutex.
+static void prv_derive_title_artist_locked(void) {
+  strcpy(s_music_ctx.title, s_music_ctx.raw_title);
+  strcpy(s_music_ctx.artist, s_music_ctx.raw_artist);
+  if (strncmp(s_music_ctx.raw_artist, CONNECT_ARTIST_PREFIX, strlen(CONNECT_ARTIST_PREFIX))) {
+    return;
+  }
+
+  // Split on the last separator: the track name is the likelier one to contain one.
+  const char *raw = s_music_ctx.raw_title;
+  const char *sep = NULL;
+  size_t sep_length = 0;
+  for (size_t i = 0; i < ARRAY_LENGTH(s_connect_separators); i++) {
+    for (const char *p = strstr(raw, s_connect_separators[i]); p;
+         p = strstr(p + 1, s_connect_separators[i])) {
+      if (p > sep) {
+        sep = p;
+        sep_length = strlen(s_connect_separators[i]);
+      }
+    }
+  }
+  if (!sep) {
+    return;
+  }
+
+  const char *track = raw, *track_end = sep;
+  const char *artist = sep + sep_length, *artist_end = raw + strlen(raw);
+  prv_trim(&track, &track_end);
+  prv_trim(&artist, &artist_end);
+  if (track == track_end || artist == artist_end) {
+    return;
+  }
+  // Both halves are substrings of raw_title, so they fit the buffers.
+  memcpy(s_music_ctx.title, track, track_end - track);
+  s_music_ctx.title[track_end - track] = 0;
+  memcpy(s_music_ctx.artist, artist, artist_end - artist);
+  s_music_ctx.artist[artist_end - artist] = 0;
 }
 
 //! Free the currently-stored album art. Caller must hold the mutex.
@@ -268,16 +347,17 @@ void music_update_now_playing(const char *title, size_t title_length, const char
   // arrives, rather than dropping it here. Phones (e.g. Android) often send several now-playing
   // updates per skip as metadata fields populate one-by-one, which would otherwise blank the art to
   // black and flash it back once per update. music_set_album_art()/NoArt handle the swap.
-  const bool track_changed = prv_str_differs(s_music_ctx.title, title, title_length) ||
-                             prv_str_differs(s_music_ctx.artist, artist, artist_length) ||
+  const bool track_changed = prv_str_differs(s_music_ctx.raw_title, title, title_length) ||
+                             prv_str_differs(s_music_ctx.raw_artist, artist, artist_length) ||
                              prv_str_differs(s_music_ctx.album, album, album_length);
   if (track_changed) {
     s_music_ctx.now_playing_generation++;
   }
 
-  copy_and_truncate(s_music_ctx.title, title, title_length);
-  copy_and_truncate(s_music_ctx.artist, artist, artist_length);
+  copy_and_truncate(s_music_ctx.raw_title, title, title_length);
+  copy_and_truncate(s_music_ctx.raw_artist, artist, artist_length);
   copy_and_truncate(s_music_ctx.album, album, album_length);
+  prv_derive_title_artist_locked();
 
   pbl_mutex_unlock(&s_music_ctx.mutex);
 
@@ -288,6 +368,7 @@ static void prv_update_string_and_put_event(const char *value, size_t value_leng
   pbl_mutex_lock(&s_music_ctx.mutex, PBL_FOREVER);
   char *buffer = ((char *)&s_music_ctx) + offset;
   copy_and_truncate(buffer, value, value_length);
+  prv_derive_title_artist_locked();
   pbl_mutex_unlock(&s_music_ctx.mutex);
   prv_put_now_playing_changed_event();
 }
@@ -299,12 +380,12 @@ void music_update_player_name(const char *player_name, size_t player_name_length
 }
 
 void music_update_track_title(const char *title, size_t title_length) {
-  off_t o = offsetof(typeof(s_music_ctx), title);
+  off_t o = offsetof(typeof(s_music_ctx), raw_title);
   prv_update_string_and_put_event(title, title_length, o);
 }
 
 void music_update_track_artist(const char *artist, size_t artist_length) {
-  off_t o = offsetof(typeof(s_music_ctx), artist);
+  off_t o = offsetof(typeof(s_music_ctx), raw_artist);
   prv_update_string_and_put_event(artist, artist_length, o);
 }
 
