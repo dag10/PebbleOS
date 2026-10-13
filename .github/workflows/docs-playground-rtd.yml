@@ -9,9 +9,7 @@
 name: Docs Playground RTD
 
 on:
-  workflow_run:
-    workflows: [Build Firmware (native), Release]
-    types: [completed]
+  workflow_dispatch:
 
 permissions:
   contents: read

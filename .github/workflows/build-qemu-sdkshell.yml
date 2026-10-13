@@ -1,10 +1,7 @@
 name: Build Firmware (QEMU + SDK Shell)
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main, '*-branch']
+  workflow_dispatch:
   workflow_call:
 
 jobs:
