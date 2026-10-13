@@ -38,10 +38,6 @@ PebbleTask pebble_task_get_current(void) {
   return PebbleTask_App;
 }
 
-bool sys_app_is_watchface(void) {
-  return false;
-}
-
 TouchServiceState *app_state_get_touch_service_state(void) {
   return &s_state;
 }
