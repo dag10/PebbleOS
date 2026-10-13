@@ -26,6 +26,11 @@ pbl_clar_test(test_app_outbox
   OVERRIDES dummy_board
 )
 
+pbl_clar_test(test_click
+  SOURCES
+    fw/applib/ui/click.c
+)
+
 pbl_clar_test(test_cpu_cache
   SOURCES
     fw/applib/cpu_cache.c
