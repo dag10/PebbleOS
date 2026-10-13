@@ -214,18 +214,40 @@ void test_prefs_db__quick_launch_hold_sent_to_watchface(void) {
   prv_insert_tap_pref("qlBack", false, &invalid_uuid);
 }
 
-void test_prefs_db__quick_launch_squeeze(void) {
+void test_prefs_db__quick_launch_combo_tap(void) {
   const Uuid other_uuid = {0, 1, 2, 3};
+  const Uuid invalid_uuid = UUID_INVALID_INIT;
 
-  cl_assert(!quick_launch_squeeze_is_enabled(BUTTON_ID_UP));
-  cl_assert(!quick_launch_squeeze_is_enabled(BUTTON_ID_DOWN));
+  cl_assert(!quick_launch_combo_tap_is_enabled(BUTTON_ID_UP, false));
+  cl_assert(!quick_launch_combo_tap_is_enabled(BUTTON_ID_DOWN, false));
+  cl_assert(!quick_launch_combo_tap_is_enabled(BUTTON_ID_UP, true));
+  cl_assert(!quick_launch_combo_tap_is_enabled(BUTTON_ID_DOWN, true));
 
+  // Tap Back+Up/Down read the prefs of the Squeeze gestures they replaced.
   prv_insert_tap_pref("qlSqueezeBackDown", true, &other_uuid);
-  cl_assert(!quick_launch_squeeze_is_enabled(BUTTON_ID_UP));
-  cl_assert(quick_launch_squeeze_is_enabled(BUTTON_ID_DOWN));
+  cl_assert(!quick_launch_combo_tap_is_enabled(BUTTON_ID_UP, false));
+  cl_assert(quick_launch_combo_tap_is_enabled(BUTTON_ID_DOWN, false));
+  cl_assert(!quick_launch_combo_tap_is_enabled(BUTTON_ID_DOWN, true));
+
+  prv_insert_tap_pref("qlSqueezeBackUp", true, &other_uuid);
+  cl_assert(quick_launch_combo_tap_is_enabled(BUTTON_ID_UP, false));
+  cl_assert(!quick_launch_combo_tap_is_enabled(BUTTON_ID_UP, true));
+
+  // The double taps have their own prefs.
+  prv_insert_tap_pref("qlDoubleTapBackUp", true, &other_uuid);
+  cl_assert(quick_launch_combo_tap_is_enabled(BUTTON_ID_UP, true));
+  cl_assert(!quick_launch_combo_tap_is_enabled(BUTTON_ID_DOWN, true));
+  prv_insert_tap_pref("qlDoubleTapBackDown", true, &other_uuid);
+  cl_assert(quick_launch_combo_tap_is_enabled(BUTTON_ID_DOWN, true));
 
   // An invalid UUID is never enabled.
-  const Uuid invalid_uuid = UUID_INVALID_INIT;
   prv_insert_tap_pref("qlSqueezeBackDown", true, &invalid_uuid);
-  cl_assert(!quick_launch_squeeze_is_enabled(BUTTON_ID_DOWN));
+  cl_assert(!quick_launch_combo_tap_is_enabled(BUTTON_ID_DOWN, false));
+  cl_assert(quick_launch_combo_tap_is_enabled(BUTTON_ID_DOWN, true));
+  prv_insert_tap_pref("qlDoubleTapBackDown", true, &invalid_uuid);
+  cl_assert(!quick_launch_combo_tap_is_enabled(BUTTON_ID_DOWN, true));
+
+  // The prefs outlive the test.
+  prv_insert_tap_pref("qlSqueezeBackUp", false, &invalid_uuid);
+  prv_insert_tap_pref("qlDoubleTapBackUp", false, &invalid_uuid);
 }
