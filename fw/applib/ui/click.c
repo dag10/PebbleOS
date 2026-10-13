@@ -224,7 +224,15 @@ static void prv_multi_click_timeout_callback(void *data) {
   }
 }
 
+static uint32_t prv_remaining_ms(uint32_t delay_ms, uint32_t elapsed_ms) {
+  return (delay_ms > elapsed_ms) ? (delay_ms - elapsed_ms) : 0;
+}
+
 void click_recognizer_handle_button_down(ClickRecognizer *recognizer) {
+  click_recognizer_handle_button_down_held(recognizer, 0);
+}
+
+void click_recognizer_handle_button_down_held(ClickRecognizer *recognizer, uint32_t held_ms) {
   recognizer->is_button_down = true;
 
   prv_cancel_timer(&recognizer->multi_click_timer);
@@ -234,14 +242,15 @@ void click_recognizer_handle_button_down(ClickRecognizer *recognizer) {
 
   if (prv_is_long_click_enabled(recognizer)) {
     const uint32_t long_click_delay = prv_long_click_get_delay(recognizer);
-    recognizer->hold_timer =
-        app_timer_register(long_click_delay, prv_long_click_callback, recognizer);
+    recognizer->hold_timer = app_timer_register(prv_remaining_ms(long_click_delay, held_ms),
+                                                prv_long_click_callback, recognizer);
   } else {
     const bool local_is_hold_to_repeat_enabled = prv_is_hold_to_repeat_enabled(recognizer);
     if (local_is_hold_to_repeat_enabled) {
       // If there's a repeat interval configured, start the repetition delay timer:
       recognizer->hold_timer =
-          app_timer_register(CLICK_REPETITION_DELAY_MS, prv_repetition_delay_callback, recognizer);
+          app_timer_register(prv_remaining_ms(CLICK_REPETITION_DELAY_MS, held_ms),
+                             prv_repetition_delay_callback, recognizer);
     }
     if (false == prv_is_multi_click_enabled(recognizer)) {
       // No long click nor multi click, fire handler immediately on button down:

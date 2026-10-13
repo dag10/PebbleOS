@@ -146,8 +146,13 @@ typedef struct PBL_PACKED { // 1 byte
   bool is_active;           //<! do not disturb has become active or has become inactive
 } PebbleDoNotDisturbEvent;
 
-typedef struct PBL_PACKED { // 1 byte?
+typedef struct PBL_PACKED {
   ButtonId button_id;
+  //! Set on a press the watchface shell replays to the watchface (Quick Launch "Send to
+  //! watchface"), never on a real button event.
+  bool is_replayed;
+  //! On a replayed button down, how long the button has already been held: 0 for a tap.
+  uint16_t held_ms;
 } PebbleButtonEvent;
 
 typedef enum PhoneEventType {
