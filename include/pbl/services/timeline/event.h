@@ -28,6 +28,8 @@ typedef enum TimelineEventService {
   TimelineEventService_Calendar,
   /** Timeline Peek. */
   TimelineEventService_Peek,
+  /** DrewPebbleOS: the current and next calendar events for apps. */
+  TimelineEventService_DrewCalendar,
 
   /** Number of services. */
   TimelineEventServiceCount,
