@@ -1,9 +1,6 @@
 name: Release QA
 
 on:
-  workflow_run:
-    workflows: [Build Firmware]
-    types: [completed]
   workflow_dispatch:
     inputs:
       run_id:
