@@ -25,8 +25,8 @@
 #include <system/passert.h>
 
 #define QUICK_LAUNCH_HOLD_MS (400)
-//! How long after a Back+Up/Down tap is released a second one may start and count as a double
-//! tap. Matches the click recognizer's default multi-click timeout.
+//! How long after a Back+Up/Down/Select tap is released a second one may start and count as a
+//! double tap. Matches the click recognizer's default multi-click timeout.
 #define COMBO_DOUBLE_TAP_WINDOW_MS (300)
 #define BIT_SET                    (1)
 #define BIT_CLEAR                  (0)
@@ -51,7 +51,7 @@ typedef enum {
 } ComboTapState;
 
 static ComboTapState s_combo_tap_state = ComboTapStateIdle;
-//! BUTTON_ID_UP or BUTTON_ID_DOWN, the button tapped together with Back.
+//! BUTTON_ID_UP, BUTTON_ID_DOWN or BUTTON_ID_SELECT, the button tapped together with Back.
 static ButtonId s_combo_tap_button;
 static AppTimer *s_combo_tap_timer = NULL;
 
@@ -433,9 +433,9 @@ static void prv_claim_combo_tap_buttons(ButtonId button) {
   prv_cancel_combo_back_hold();
 }
 
-//! Tap Back+Up/Down and their double taps. A tap starts when the second of the two buttons goes
-//! down, in either order. Without a double tap assigned, the tap fires right away; otherwise it
-//! waits for a second tap until COMBO_DOUBLE_TAP_WINDOW_MS after the first one's release, and
+//! Tap Back+Up/Down/Select and their double taps. A tap starts when the second of the two buttons
+//! goes down, in either order. Without a double tap assigned, the tap fires right away; otherwise
+//! it waits for a second tap until COMBO_DOUBLE_TAP_WINDOW_MS after the first one's release, and
 //! the second tap fires as soon as it goes down. Returns true if @p pressed was taken by a
 //! combo, which cancels the buttons' own tap and hold.
 static bool prv_check_combo_tap(ButtonId pressed) {
@@ -451,15 +451,16 @@ static bool prv_check_combo_tap(ButtonId pressed) {
   }
 
   const bool back_held = (s_buttons_pressed & (BIT_SET << BUTTON_ID_BACK));
-  const bool up_held = (s_buttons_pressed & (BIT_SET << BUTTON_ID_UP));
-  const bool down_held = (s_buttons_pressed & (BIT_SET << BUTTON_ID_DOWN));
+  const uint8_t others_held = s_buttons_pressed & ~(BIT_SET << BUTTON_ID_BACK);
 
+  // Back plus exactly one of Up, Down and Select.
   bool is_combo = true;
   ButtonId other = pressed;
-  if ((pressed == BUTTON_ID_UP || pressed == BUTTON_ID_DOWN) && back_held) {
+  if ((pressed != BUTTON_ID_BACK) && back_held) {
     other = pressed;
-  } else if (pressed == BUTTON_ID_BACK && (up_held != down_held)) {
-    other = up_held ? BUTTON_ID_UP : BUTTON_ID_DOWN;
+  } else if ((pressed == BUTTON_ID_BACK) && (others_held != 0) &&
+             ((others_held & (others_held - 1)) == 0)) {
+    other = (ButtonId)__builtin_ctz(others_held);
   } else {
     is_combo = false;
   }

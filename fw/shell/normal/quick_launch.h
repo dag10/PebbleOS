@@ -35,7 +35,8 @@ AppInstallId quick_launch_combo_up_down_get_app(void);
 void quick_launch_combo_up_down_set_app(AppInstallId app_id);
 void quick_launch_combo_up_down_set_enabled(bool enabled);
 
-//! Back tapped together with @p button (BUTTON_ID_UP or BUTTON_ID_DOWN), once or, with
+//! Back tapped together with @p button (BUTTON_ID_UP, BUTTON_ID_DOWN or BUTTON_ID_SELECT), once
+//! or, with
 //! @p double_tap, twice in a row.
 bool quick_launch_combo_tap_is_enabled(ButtonId button, bool double_tap);
 AppInstallId quick_launch_combo_tap_get_app(ButtonId button, bool double_tap);
