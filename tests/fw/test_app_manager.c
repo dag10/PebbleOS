@@ -309,6 +309,9 @@ void system_app_state_machine_register_app_launch(const PebbleProcessMd *app) {
 void health_tracking_ui_register_app_launch(AppInstallId app_id) {
 }
 
+void app_usage_storage_record(const Uuid *uuid) {
+}
+
 void sys_vibe_history_stop_collecting(void) {
 }
 

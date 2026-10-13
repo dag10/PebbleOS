@@ -4,6 +4,7 @@
 #include <pbl/services/app_cache.h>
 #include <pbl/services/blob_db/app_db.h>
 #include <pbl/services/filesystem/pfs.h>
+#include <pbl/services/process_management/app_usage_storage.h>
 #include <pbl/services/system_task.h>
 #include <pbl/util/build_id.h>
 #include <pbl/util/size.h>
@@ -205,6 +206,7 @@ void test_app_menu_data_source__initialize(void) {
   // Reset app_order_storage cached state - file_known_missing persists between tests
   // and would cause app_order_read_order to return NULL even when the file exists
   app_order_storage_reset_for_tests();
+  app_usage_storage_reset_for_tests();
 
   app_install_manager_init();
   app_db_init();
@@ -646,4 +648,112 @@ void test_app_menu_data_source__app_node_comparator_equality_cases(void) {
     AppMenuNode *node = (AppMenuNode *)list_get_at(&app_list->node, i);
     cl_assert_equal_i(node->install_id, desired_order[i]);
   }
+}
+
+// Sort modes
+////////////////////////////////////
+
+static const AppInstallId s_app_default_order[] = {
+  APP_ID_SETTINGS,   APP_ID_MUSIC,   APP_ID_NOTIFICATIONS, APP_ID_ALARMS,
+  APP_ID_WATCHFACES, APP_ID_WORKOUT, BG_COUNTER_APP_ID,    MENU_LAYER_APP_ID,
+};
+
+static void prv_record_usage_at(AppInstallId install_id, time_t time) {
+  Uuid uuid;
+  cl_assert(app_install_get_uuid_for_install_id(install_id, &uuid));
+  rtc_set_time(time);
+  app_usage_storage_record(&uuid);
+}
+
+static void prv_init_apps_data_source(AppMenuSortMode sort_mode) {
+  app_menu_data_source_init(&data_source,
+                            &(AppMenuDataSourceCallbacks){
+                              .changed = prv_menu_layer_reload_data,
+                              .filter = app_filter_callback,
+                            },
+                            &menu_layer);
+  app_menu_data_source_set_sort_mode(&data_source, sort_mode);
+}
+
+static void prv_assert_order(const AppInstallId order[], uint16_t num_entries) {
+  const uint16_t num_apps = app_menu_data_source_get_count(&data_source);
+  cl_assert_equal_i(num_apps, num_entries);
+  for (uint16_t i = 0; i < num_apps; i++) {
+    AppMenuNode *node = app_menu_data_source_get_node_at_index(&data_source, i);
+    cl_assert_equal_i(node->install_id, order[i]);
+  }
+}
+
+static int prv_ascii_casecmp(const char *a, const char *b) {
+  for (;; a++, b++) {
+    const int ca = ((*a >= 'A') && (*a <= 'Z')) ? (*a - 'A' + 'a') : *a;
+    const int cb = ((*b >= 'A') && (*b <= 'Z')) ? (*b - 'A' + 'a') : *b;
+    if ((ca != cb) || !ca) {
+      return ca - cb;
+    }
+  }
+}
+
+void test_app_menu_data_source__recently_used_order(void) {
+  prv_record_usage_at(MENU_LAYER_APP_ID, 1000);
+  prv_record_usage_at(APP_ID_ALARMS, 2000);
+  prv_record_usage_at(APP_ID_WORKOUT, 3000);
+  // Using the most recent app again changes nothing
+  prv_record_usage_at(APP_ID_WORKOUT, 3500);
+  prv_record_usage_at(MENU_LAYER_APP_ID, 4000);
+
+  // Most recent first, then the never used apps in the default order
+  static const AppInstallId desired_order[] = {
+    MENU_LAYER_APP_ID, APP_ID_WORKOUT,       APP_ID_ALARMS,     APP_ID_SETTINGS,
+    APP_ID_MUSIC,      APP_ID_NOTIFICATIONS, APP_ID_WATCHFACES, BG_COUNTER_APP_ID,
+  };
+  prv_init_apps_data_source(AppMenuSortMode_RecentlyUsed);
+  prv_assert_order(desired_order, ARRAY_LENGTH(desired_order));
+  app_menu_data_source_deinit(&data_source);
+}
+
+void test_app_menu_data_source__recently_used_survives_reboot(void) {
+  prv_record_usage_at(APP_ID_ALARMS, 1000);
+  prv_record_usage_at(BG_COUNTER_APP_ID, 2000);
+  // A reboot forgets the most recent app, which must not lose or reorder the stored times
+  app_usage_storage_reset_for_tests();
+  prv_record_usage_at(BG_COUNTER_APP_ID, 3000);
+
+  prv_init_apps_data_source(AppMenuSortMode_RecentlyUsed);
+  AppMenuNode *first = app_menu_data_source_get_node_at_index(&data_source, 0);
+  AppMenuNode *second = app_menu_data_source_get_node_at_index(&data_source, 1);
+  cl_assert_equal_i(first->install_id, BG_COUNTER_APP_ID);
+  cl_assert_equal_i(first->last_used, 3000);
+  cl_assert_equal_i(second->install_id, APP_ID_ALARMS);
+  cl_assert_equal_i(second->last_used, 1000);
+  app_menu_data_source_deinit(&data_source);
+}
+
+void test_app_menu_data_source__alphabetical_order(void) {
+  prv_init_apps_data_source(AppMenuSortMode_Alphabetical);
+  const uint16_t num_apps = app_menu_data_source_get_count(&data_source);
+  cl_assert_equal_i(num_apps, ARRAY_LENGTH(s_app_default_order));
+  for (uint16_t i = 1; i < num_apps; i++) {
+    AppMenuNode *prev = app_menu_data_source_get_node_at_index(&data_source, i - 1);
+    AppMenuNode *node = app_menu_data_source_get_node_at_index(&data_source, i);
+    cl_assert(prv_ascii_casecmp(prev->name, node->name) <= 0);
+  }
+  app_menu_data_source_deinit(&data_source);
+}
+
+void test_app_menu_data_source__set_sort_mode_resorts_loaded_list(void) {
+  prv_record_usage_at(BG_COUNTER_APP_ID, 1000);
+
+  prv_init_apps_data_source(AppMenuSortMode_Default);
+  prv_assert_order(s_app_default_order, ARRAY_LENGTH(s_app_default_order));
+
+  app_menu_data_source_set_sort_mode(&data_source, AppMenuSortMode_RecentlyUsed);
+  AppMenuNode *first = app_menu_data_source_get_node_at_index(&data_source, 0);
+  cl_assert_equal_i(first->install_id, BG_COUNTER_APP_ID);
+  cl_assert_equal_i(app_menu_data_source_get_count(&data_source),
+                    ARRAY_LENGTH(s_app_default_order));
+
+  app_menu_data_source_set_sort_mode(&data_source, AppMenuSortMode_Default);
+  prv_assert_order(s_app_default_order, ARRAY_LENGTH(s_app_default_order));
+  app_menu_data_source_deinit(&data_source);
 }
