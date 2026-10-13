@@ -100,6 +100,8 @@ static const char *s_syncable_settings[] = {
   "qlSqueezeBackDown",
   "qlDoubleTapBackUp",
   "qlDoubleTapBackDown",
+  "qlTapBackSelect",
+  "qlDoubleTapBackSelect",
 
   // UI theming
   "settingsMenuHighlightColor",
