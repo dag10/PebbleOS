@@ -369,12 +369,14 @@ static GColor s_theme_highlight_color = GColorVividCerulean;
 #define PREF_KEY_MUSIC_SHOW_VOLUME_CONTROLS "musicShowVolumeControls"
 #define PREF_KEY_MUSIC_SHOW_PROGRESS_BAR    "musicShowProgressBar"
 #define PREF_KEY_MUSIC_SHOW_ALBUM_ART       "musicShowAlbumArt"
+#define PREF_KEY_LAUNCHER_SORT_MODE         "launcherSortMode"
 
 static bool s_menu_scroll_wrap_around = false;
 static MenuScrollVibeBehavior s_menu_scroll_vibe_behavior = MenuScrollNoVibe;
 static bool s_music_show_volume_controls = true;
 static bool s_music_show_progress_bar = true;
 static bool s_music_show_album_art = false;
+static LauncherSortMode s_launcher_sort_mode = LauncherSortMode_Default;
 
 // ============================================================================================
 // Handlers for each pref that validate the new setting and store the new value in our globals.
@@ -1006,6 +1008,15 @@ static bool prv_set_s_music_show_progress_bar(bool *enabled) {
 
 static bool prv_set_s_music_show_album_art(bool *enabled) {
   s_music_show_album_art = *enabled;
+  return true;
+}
+
+static bool prv_set_s_launcher_sort_mode(LauncherSortMode *mode) {
+  if (*mode >= LauncherSortModeCount) {
+    s_launcher_sort_mode = LauncherSortMode_Default;
+    return false;
+  }
+  s_launcher_sort_mode = *mode;
   return true;
 }
 
@@ -2439,4 +2450,12 @@ bool shell_prefs_get_music_show_album_art(void) {
 
 void shell_prefs_set_music_show_album_art(bool enable) {
   prv_pref_set(PREF_KEY_MUSIC_SHOW_ALBUM_ART, &enable, sizeof(enable));
+}
+
+LauncherSortMode shell_prefs_get_launcher_sort_mode(void) {
+  return s_launcher_sort_mode;
+}
+
+void shell_prefs_set_launcher_sort_mode(LauncherSortMode mode) {
+  prv_pref_set(PREF_KEY_LAUNCHER_SORT_MODE, &mode, sizeof(mode));
 }

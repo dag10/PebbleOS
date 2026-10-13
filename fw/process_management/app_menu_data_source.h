@@ -11,6 +11,7 @@
 
 #include <pbl/kernel/compiler.h>
 #include <pbl/services/process_management/app_order_storage.h>
+#include <pbl/services/process_management/app_usage_storage.h>
 #include <pbl/util/list.h>
 
 #include <applib/ui/kino/kino_reel.h>
@@ -30,6 +31,18 @@ typedef enum AppMenuStorageOrder {
   AppMenuStorageOrderGeneralOrderOffset
 } AppMenuStorageOrder;
 
+//! Order of the apps in the list
+typedef enum AppMenuSortMode {
+  //! Override apps, then the order stored by the phone, then system apps, then install order
+  AppMenuSortMode_Default = 0,
+  //! Most recently used first, then never used apps in the default order
+  AppMenuSortMode_RecentlyUsed,
+  //! By name, ignoring ASCII case
+  AppMenuSortMode_Alphabetical,
+
+  AppMenuSortModeCount
+} AppMenuSortMode;
+
 typedef struct PBL_PACKED AppMenuNode {
   ListNode node;
   AppInstallId install_id;
@@ -43,6 +56,7 @@ typedef struct PBL_PACKED AppMenuNode {
   Version sdk_version;
   unsigned int storage_order; //!< See \ref AppMenuStorageOrder for special values of this field
   unsigned int record_order;  //!< 0 means not in the app registry
+  uint32_t last_used;         //!< UTC seconds, 0 if never used or not loaded
 } AppMenuNode;
 
 // Clang makes the size of enums like AppMenuStorageOrder larger than the minimum size needed to
@@ -72,6 +86,8 @@ typedef struct AppMenuDataSourceCallbacks {
 typedef struct AppMenuDataSource {
   AppMenuNode *list;
   AppMenuOrderStorage *order_storage;
+  AppUsageList *usage;
+  AppMenuSortMode sort_mode;
   AppInstallCallbackNode app_install_callback_node;
   AppMenuDataSourceCallbacks callbacks;
   void *callback_context;
@@ -86,6 +102,9 @@ void app_menu_data_source_init(AppMenuDataSource *source,
 
 //! Deinitialize the AppMenuDataSource
 void app_menu_data_source_deinit(AppMenuDataSource *source);
+
+//! Sets the order of the apps, re-sorting a list that is already loaded.
+void app_menu_data_source_set_sort_mode(AppMenuDataSource *source, AppMenuSortMode sort_mode);
 
 //! Will load the icons for each `AppMenuNode`. Will automatically be unloaded when
 //! `app_menu_data_source_deinit` is called.
