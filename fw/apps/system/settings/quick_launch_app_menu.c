@@ -46,10 +46,15 @@ AppInstallId quick_launch_app_menu_get_app(QuickLaunchGesture gesture, ButtonId 
       return quick_launch_single_click_get_app(button);
     case QuickLaunchGestureHold:
       return quick_launch_get_app(button);
-    case QuickLaunchGestureSqueeze:
-      return quick_launch_squeeze_get_app(button);
+    case QuickLaunchGestureComboTap:
+    case QuickLaunchGestureComboDoubleTap:
+      return quick_launch_combo_tap_get_app(button, gesture == QuickLaunchGestureComboDoubleTap);
   }
   return INSTALL_ID_INVALID;
+}
+
+static bool prv_is_double_tap(const QuickLaunchAppMenuData *data) {
+  return (data->gesture == QuickLaunchGestureComboDoubleTap);
 }
 
 static void prv_set_app(QuickLaunchAppMenuData *data, AppInstallId app_id) {
@@ -60,8 +65,9 @@ static void prv_set_app(QuickLaunchAppMenuData *data, AppInstallId app_id) {
     case QuickLaunchGestureHold:
       quick_launch_set_app(data->button, app_id);
       break;
-    case QuickLaunchGestureSqueeze:
-      quick_launch_squeeze_set_app(data->button, app_id);
+    case QuickLaunchGestureComboTap:
+    case QuickLaunchGestureComboDoubleTap:
+      quick_launch_combo_tap_set_app(data->button, prv_is_double_tap(data), app_id);
       break;
   }
 }
@@ -76,9 +82,10 @@ static void prv_unassign(QuickLaunchAppMenuData *data) {
       quick_launch_set_app(data->button, INSTALL_ID_INVALID);
       quick_launch_set_enabled(data->button, false);
       break;
-    case QuickLaunchGestureSqueeze:
-      quick_launch_squeeze_set_app(data->button, INSTALL_ID_INVALID);
-      quick_launch_squeeze_set_enabled(data->button, false);
+    case QuickLaunchGestureComboTap:
+    case QuickLaunchGestureComboDoubleTap:
+      quick_launch_combo_tap_set_app(data->button, prv_is_double_tap(data), INSTALL_ID_INVALID);
+      quick_launch_combo_tap_set_enabled(data->button, prv_is_double_tap(data), false);
       break;
   }
 }
@@ -124,9 +131,10 @@ static bool prv_app_filter_callback(struct AppMenuDataSource *source, AppInstall
     return (entry->install_id == APP_ID_QUICK_LAUNCH_WATCHFACE);
   }
 
-  // "Send to watchface" passes a tap or a hold of one button on to the watchface; a squeeze
-  // has no watchface counterpart.
-  if ((data->gesture == QuickLaunchGestureSqueeze) &&
+  // "Send to watchface" passes a tap or a hold of one button on to the watchface; a Back
+  // combo has no watchface counterpart.
+  if (((data->gesture == QuickLaunchGestureComboTap) ||
+       (data->gesture == QuickLaunchGestureComboDoubleTap)) &&
       (entry->install_id == APP_ID_QUICK_LAUNCH_WATCHFACE)) {
     return false;
   }
