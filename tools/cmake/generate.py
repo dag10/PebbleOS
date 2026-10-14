@@ -8,6 +8,7 @@ import argparse
 import json
 import os
 import sys
+import time
 
 import wafshim
 from wafshim import REPO_ROOT
@@ -49,6 +50,11 @@ def read_config(path):
 
 def cmd_version(args):
     revision = gitinfo.get_git_revision()
+    # The untruncated short hash, as `git describe` abbreviates it, for display,
+    # marked like the tag (which may get truncated below) on a dirty tree.
+    revision["COMMIT_ABBREV"] = revision["COMMIT"]
+    if revision["TAG"].endswith("-dirty"):
+        revision["COMMIT_ABBREV"] += "-dirty"
     # Truncate the commit to fit in the versions struct. It may become
     # ambiguous, but that beats failing the build over a long hash.
     revision["COMMIT"] = revision["COMMIT"][:7]
@@ -60,6 +66,20 @@ def cmd_version(args):
         content = f.read()
     for key, value in revision.items():
         content = content.replace(f"@{key}@", str(value))
+    write_if_changed(args.output, content)
+
+
+# --- build_time.c ---------------------------------------------------------
+
+
+def cmd_build_time(args):
+    # SOURCE_DATE_EPOCH keeps a reproducible build reproducible.
+    timestamp = int(os.environ.get("SOURCE_DATE_EPOCH") or time.time())
+    content = (
+        "#include <stdint.h>\n\n"
+        "//! When the firmware was built, a UTC epoch. See system/version.h.\n"
+        f"const uint32_t g_firmware_build_timestamp = {timestamp};\n"
+    )
     write_if_changed(args.output, content)
 
 
@@ -348,6 +368,10 @@ def main():
     p.add_argument("--template", required=True)
     p.add_argument("--output", required=True)
     p.set_defaults(func=cmd_version)
+
+    p = sub.add_parser("build-time")
+    p.add_argument("--output", required=True)
+    p.set_defaults(func=cmd_build_time)
 
     p = sub.add_parser("app-registry")
     p.add_argument("--input", required=True)
