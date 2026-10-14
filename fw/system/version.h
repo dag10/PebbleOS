@@ -15,6 +15,10 @@ extern const FirmwareMetadata TINTIN_METADATA;
 //! Copies the version metadata of the running firmware in the provided struct.
 //! @param[out] out_metadata pointer to a FirmwareMetadata to which to copy the version metadata
 //! @returns true if it successfully copied the version metadata.
+//! When the firmware was built, a UTC epoch (version_timestamp is the commit time). Defined in
+//! the generated build_time.c.
+extern const uint32_t g_firmware_build_timestamp;
+
 bool version_copy_running_fw_metadata(FirmwareMetadata *out_metadata);
 
 //! Copies the version metadata of the recovery firmware in the provided struct.
