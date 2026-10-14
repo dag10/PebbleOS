@@ -54,6 +54,8 @@ static ComboTapState s_combo_tap_state = ComboTapStateIdle;
 //! BUTTON_ID_UP, BUTTON_ID_DOWN or BUTTON_ID_SELECT, the button tapped together with Back.
 static ButtonId s_combo_tap_button;
 static AppTimer *s_combo_tap_timer = NULL;
+//! Set once the current Back press has been part of a Back combo; its hold then does nothing.
+static bool s_back_press_had_combo = false;
 
 static bool prv_launch_quick_launch_app(AppInstallId app_id, ButtonId button,
                                         AppLaunchReason timeline_reason,
@@ -126,7 +128,7 @@ static void prv_combo_back_timer_callback(void *data) {
 static void prv_check_combo_back_hold(void) {
   uint8_t combo_buttons = BIT_CLEAR;
 
-  if (prv_is_combo_pressed(COMBO_BACK_UP_BUTTONS)) {
+  if (prv_is_combo_pressed(COMBO_BACK_UP_BUTTONS) && !s_back_press_had_combo) {
     combo_buttons = COMBO_BACK_UP_BUTTONS;
   } else if (prv_is_combo_pressed(COMBO_UP_DOWN_BUTTONS)) {
     combo_buttons = COMBO_UP_DOWN_BUTTONS;
@@ -291,6 +293,9 @@ static void prv_quick_launch_handler(ClickRecognizerRef recognizer, void *data) 
   if (prv_is_any_combo_active()) {
     return;
   }
+  if ((button == BUTTON_ID_BACK) && s_back_press_had_combo) {
+    return;
+  }
 
   AppInstallId app_id =
       quick_launch_is_enabled(button) ? quick_launch_get_app(button) : INSTALL_ID_INVALID;
@@ -375,7 +380,7 @@ static void prv_launch_launcher_app(ClickRecognizerRef recognizer, void *data) {
 }
 
 static void prv_back_click_handler(ClickRecognizerRef recognizer, void *data) {
-  if (prv_is_any_combo_active()) {
+  if (prv_is_any_combo_active() || s_back_press_had_combo) {
     return;
   }
   // A timeline peek on screen still takes the tap, as it covers the watchface.
@@ -428,6 +433,7 @@ static void prv_combo_tap_timer_callback(void *data) {
 }
 
 static void prv_claim_combo_tap_buttons(ButtonId button) {
+  s_back_press_had_combo = true;
   click_recognizer_reset(&s_click_manager.recognizers[BUTTON_ID_BACK]);
   click_recognizer_reset(&s_click_manager.recognizers[button]);
   prv_cancel_combo_back_hold();
@@ -474,6 +480,9 @@ static bool prv_check_combo_tap(ButtonId pressed) {
     if (!is_combo && (pressed == BUTTON_ID_BACK || pressed == s_combo_tap_button)) {
       // Possibly the first half of the second tap; it does nothing on its own.
       click_recognizer_reset(&s_click_manager.recognizers[pressed]);
+      if (pressed == BUTTON_ID_BACK) {
+        s_back_press_had_combo = true;
+      }
       return true;
     }
     // Any other press ends the wait, firing the single tap first.
@@ -531,6 +540,10 @@ void watchface_handle_button_event(PebbleEvent *e) {
   }
   switch (e->type) {
     case PEBBLE_BUTTON_DOWN_EVENT:
+      if (e->button.button_id == BUTTON_ID_BACK) {
+        // A fresh Back press, even if the last one's release went elsewhere.
+        s_back_press_had_combo = false;
+      }
       s_buttons_pressed |= (BIT_SET << e->button.button_id);
       click_recognizer_handle_button_down(&s_click_manager.recognizers[e->button.button_id]);
       if (!prv_check_combo_tap(e->button.button_id)) {
@@ -545,6 +558,9 @@ void watchface_handle_button_event(PebbleEvent *e) {
       }
       click_recognizer_handle_button_up(&s_click_manager.recognizers[e->button.button_id]);
       prv_release_watchface_hold(e->button.button_id);
+      if (e->button.button_id == BUTTON_ID_BACK) {
+        s_back_press_had_combo = false;
+      }
       break;
     default:
       PBL_CROAK("Invalid event type: %u", e->type);
