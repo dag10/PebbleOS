@@ -121,6 +121,19 @@ if(NOT CONFIG_RECOVERY_FW AND NOT CONFIG_SOC_POSIX)
   set(PBL_FIRMWARE_SOURCES ${PBL_PEBBLE_AUTO_C})
 endif()
 
+# The time of the build itself, regenerated on every build (the stamp is never
+# written). Only this file recompiles, plus the relink.
+set(build_time_c ${CMAKE_BINARY_DIR}/generated/build_time.c)
+add_custom_command(
+  OUTPUT ${build_time_c} ${CMAKE_BINARY_DIR}/generated/build_time.stamp
+  COMMAND ${PYTHON_EXECUTABLE} ${PBL_BASE}/tools/cmake/generate.py build-time
+          --output ${build_time_c}
+  WORKING_DIRECTORY ${PBL_BASE}
+  COMMENT "Stamping the build time"
+  VERBATIM
+)
+list(APPEND PBL_FIRMWARE_SOURCES ${build_time_c})
+
 add_subdirectory(third_party)
 add_subdirectory(lib)
 add_subdirectory(kernel)

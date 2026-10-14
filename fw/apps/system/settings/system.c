@@ -23,6 +23,7 @@
 #include <pbl/util/math.h>
 #include <pbl/util/size.h>
 #include <pbl/util/time.h>
+#include <pbl/version.h>
 
 #include <applib/fonts/fonts.h>
 #include <applib/ui/app_window_stack.h>
@@ -51,6 +52,8 @@
 enum {
   SystemInformationItemBtAddress = 0,
   SystemInformationItemFirmware,
+  SystemInformationItemBuildDate,
+  SystemInformationItemCommit,
   SystemInformationItemLanguage,
   SystemInformationItemRecovery,
   SystemInformationItemBootloader,
@@ -128,6 +131,7 @@ typedef struct SystemInformationData {
   char uptime_string[16]; // "xxd xxh xxm xxs"
   char const *subtitle_text[SystemInformationItem_Count];
   char language_string[16];
+  char build_date_string[24]; // "YY-MM-DD HH:MM:SS"
 } SystemInformationData;
 
 typedef struct SettingsSystemData {
@@ -206,6 +210,8 @@ static ConfirmationDialog *prv_settings_confirm(const char *title, const char *t
 static const char *s_information_titles[SystemInformationItem_Count] = {
   [SystemInformationItemBtAddress] = i18n_noop("BT Address"),
   [SystemInformationItemFirmware] = i18n_noop("Firmware"),
+  [SystemInformationItemBuildDate] = i18n_noop("Build Date"),
+  [SystemInformationItemCommit] = i18n_noop("Commit"),
   [SystemInformationItemLanguage] = i18n_noop("Language"),
   [SystemInformationItemRecovery] = i18n_noop("Recovery"),
   [SystemInformationItemBootloader] = i18n_noop("Bootloader"),
@@ -223,6 +229,14 @@ static void prv_populate_uptime_string(SystemInformationData *data) {
 
   sniprintf(data->uptime_string, sizeof(data->uptime_string),
             "%" PRIu32 "d %" PRIu32 "h %" PRIu32 "m %" PRIu32 "s", days, hours, minutes, seconds);
+}
+
+//! When the firmware was built, in local time.
+static void prv_populate_build_date_string(SystemInformationData *data) {
+  const time_t timestamp = g_firmware_build_timestamp;
+  struct tm local;
+  localtime_r(&timestamp, &local);
+  strftime(data->build_date_string, sizeof(data->build_date_string), "%y-%m-%d %H:%M:%S", &local);
 }
 
 static void prv_information_draw_row_callback(GContext *ctx, const Layer *cell_layer,
@@ -306,6 +320,7 @@ static void prv_information_window_push(SettingsSystemData *data) {
   mfg_info_get_serialnumber(info->serial_string, MFG_SERIAL_NUMBER_SIZE + 1);
   mfg_info_get_hw_version(info->hw_version_string, MFG_HW_VERSION_SIZE + 1);
   prv_populate_uptime_string(info);
+  prv_populate_build_date_string(info);
 
   sniprintf(info->language_string, sizeof(info->language_string), "%s, v%u", i18n_get_locale(),
             i18n_get_version());
@@ -314,6 +329,8 @@ static void prv_information_window_push(SettingsSystemData *data) {
   info->subtitle_text[SystemInformationItemFirmware] =
       (char *)(strlen(TINTIN_METADATA.version_tag) >= 2 ? TINTIN_METADATA.version_tag
                                                         : TINTIN_METADATA.version_short);
+  info->subtitle_text[SystemInformationItemBuildDate] = info->build_date_string;
+  info->subtitle_text[SystemInformationItemCommit] = PBL_VERSION_GIT_SHA_ABBREV;
   info->subtitle_text[SystemInformationItemLanguage] = info->language_string;
   info->subtitle_text[SystemInformationItemRecovery] = info->recovery_version_string;
   info->subtitle_text[SystemInformationItemBootloader] = info->boot_version_string;
