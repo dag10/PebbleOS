@@ -40,6 +40,22 @@ static const char *s_category_titles[] = {
   [QuickLaunchMenuCategoryApps] = i18n_noop("Apps"),
 };
 
+//! How many times in a row a Back combo @p gesture taps, 0 if it is not a Back combo.
+static uint8_t prv_combo_taps(QuickLaunchGesture gesture) {
+  switch (gesture) {
+    case QuickLaunchGestureComboTap:
+      return 1;
+    case QuickLaunchGestureComboDoubleTap:
+      return 2;
+    case QuickLaunchGestureComboTripleTap:
+      return 3;
+    case QuickLaunchGestureTap:
+    case QuickLaunchGestureHold:
+      break;
+  }
+  return 0;
+}
+
 AppInstallId quick_launch_app_menu_get_app(QuickLaunchGesture gesture, ButtonId button) {
   switch (gesture) {
     case QuickLaunchGestureTap:
@@ -48,13 +64,10 @@ AppInstallId quick_launch_app_menu_get_app(QuickLaunchGesture gesture, ButtonId 
       return quick_launch_get_app(button);
     case QuickLaunchGestureComboTap:
     case QuickLaunchGestureComboDoubleTap:
-      return quick_launch_combo_tap_get_app(button, gesture == QuickLaunchGestureComboDoubleTap);
+    case QuickLaunchGestureComboTripleTap:
+      return quick_launch_combo_tap_get_app(button, prv_combo_taps(gesture));
   }
   return INSTALL_ID_INVALID;
-}
-
-static bool prv_is_double_tap(const QuickLaunchAppMenuData *data) {
-  return (data->gesture == QuickLaunchGestureComboDoubleTap);
 }
 
 static void prv_set_app(QuickLaunchAppMenuData *data, AppInstallId app_id) {
@@ -67,7 +80,8 @@ static void prv_set_app(QuickLaunchAppMenuData *data, AppInstallId app_id) {
       break;
     case QuickLaunchGestureComboTap:
     case QuickLaunchGestureComboDoubleTap:
-      quick_launch_combo_tap_set_app(data->button, prv_is_double_tap(data), app_id);
+    case QuickLaunchGestureComboTripleTap:
+      quick_launch_combo_tap_set_app(data->button, prv_combo_taps(data->gesture), app_id);
       break;
   }
 }
@@ -84,8 +98,10 @@ static void prv_unassign(QuickLaunchAppMenuData *data) {
       break;
     case QuickLaunchGestureComboTap:
     case QuickLaunchGestureComboDoubleTap:
-      quick_launch_combo_tap_set_app(data->button, prv_is_double_tap(data), INSTALL_ID_INVALID);
-      quick_launch_combo_tap_set_enabled(data->button, prv_is_double_tap(data), false);
+    case QuickLaunchGestureComboTripleTap:
+      quick_launch_combo_tap_set_app(data->button, prv_combo_taps(data->gesture),
+                                     INSTALL_ID_INVALID);
+      quick_launch_combo_tap_set_enabled(data->button, prv_combo_taps(data->gesture), false);
       break;
   }
 }
@@ -133,8 +149,7 @@ static bool prv_app_filter_callback(struct AppMenuDataSource *source, AppInstall
 
   // "Send to watchface" passes a tap or a hold of one button on to the watchface; a Back
   // combo has no watchface counterpart.
-  if (((data->gesture == QuickLaunchGestureComboTap) ||
-       (data->gesture == QuickLaunchGestureComboDoubleTap)) &&
+  if ((prv_combo_taps(data->gesture) != 0) &&
       (entry->install_id == APP_ID_QUICK_LAUNCH_WATCHFACE)) {
     return false;
   }
