@@ -26,7 +26,9 @@ typedef enum FirstUseSource {
   /** Calendar-aware (smart) DND enabled. */
   FirstUseSourceSmartDND,
   /** Dismiss action used. */
-  FirstUseSourceDismiss
+  FirstUseSourceDismiss,
+  /** iOS Focus DND enabled. */
+  FirstUseSourceFocusDND,
 } FirstUseSource;
 
 /**
