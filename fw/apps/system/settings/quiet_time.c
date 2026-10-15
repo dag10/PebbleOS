@@ -21,6 +21,7 @@
 #include <applib/ui/action_menu_window_private.h>
 #include <applib/ui/app_window_stack.h>
 #include <applib/ui/day_picker.h>
+#include <applib/ui/dialogs/expandable_dialog.h>
 #include <applib/ui/menu_layer.h>
 #include <applib/ui/time_range_selection_window.h>
 #include <kernel/pbl_malloc.h>
@@ -439,6 +440,22 @@ static void prv_schedule_draw_row_cb(SettingsCallbacks *context, GContext *ctx,
   menu_cell_layer_draw(ctx, cell_layer, &config);
 }
 
+static void prv_push_focus_help_dialog(void) {
+  const void *i18n_owner = prv_push_focus_help_dialog;
+  const char *header = i18n_get("iOS Focus", i18n_owner);
+  const char *text = i18n_get(
+      "Quiet Time turns on with any iPhone Focus that has the Pebble Quiet Time filter. Add it in "
+      "iPhone Settings > Focus > Focus Filters.",
+      i18n_owner);
+  ExpandableDialog *expandable_dialog = expandable_dialog_create_with_params(
+      WINDOW_NAME("Quiet Time iOS Focus"), RESOURCE_ID_QUIET_TIME, text, GColorBlack,
+      GColorMediumAquamarine, nullptr, RESOURCE_ID_ACTION_BAR_ICON_CHECK,
+      expandable_dialog_close_cb);
+  expandable_dialog_set_header(expandable_dialog, header);
+  i18n_free_all(i18n_owner);
+  app_expandable_dialog_push(expandable_dialog);
+}
+
 static void prv_schedule_select_click_cb(SettingsCallbacks *context, uint16_t row) {
   SettingsQuietTimeScheduleData *data = (SettingsQuietTimeScheduleData *)context;
 
@@ -615,13 +632,8 @@ static void prv_draw_row_cb(SettingsCallbacks *context, GContext *ctx, const Lay
       break;
     case QuietTimeItemFocus:
       title = i18n_get("iOS Focus", data);
-      if (!do_not_disturb_is_focus_dnd_enabled()) {
-        subtitle = i18n_ctx_get("QuietTime", "Disabled", data);
-      } else if (do_not_disturb_is_focus_active()) {
-        subtitle = i18n_get("Focus On", data);
-      } else {
-        subtitle = i18n_ctx_get("QuietTime", "Enabled", data);
-      }
+      subtitle = do_not_disturb_is_focus_active() ? i18n_get("Focus On", data)
+                                                  : i18n_get("Focus Off", data);
       break;
     case QuietTimeItemSchedule:
       title = i18n_get("Schedule", data);
@@ -659,7 +671,7 @@ static void prv_select_click_cb(SettingsCallbacks *context, uint16_t row) {
       do_not_disturb_toggle_smart_dnd();
       break;
     case QuietTimeItemFocus:
-      do_not_disturb_toggle_focus_dnd();
+      prv_push_focus_help_dialog();
       break;
     case QuietTimeItemSchedule:
       prv_schedule_submenu_push();
