@@ -236,6 +236,9 @@ static QuickLaunchPreference s_quick_launch_back = {
 #define PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_DOWN   "qlDoubleTapBackDown"
 #define PREF_KEY_QUICK_LAUNCH_TAP_BACK_SELECT        "qlTapBackSelect"
 #define PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_SELECT "qlDoubleTapBackSelect"
+#define PREF_KEY_QUICK_LAUNCH_TRIPLE_TAP_BACK_UP     "qlTripleTapBackUp"
+#define PREF_KEY_QUICK_LAUNCH_TRIPLE_TAP_BACK_DOWN   "qlTripleTapBackDown"
+#define PREF_KEY_QUICK_LAUNCH_TRIPLE_TAP_BACK_SELECT "qlTripleTapBackSelect"
 
 static QuickLaunchPreference s_quick_launch_single_click_up = {
   .enabled = true,
@@ -289,6 +292,21 @@ static QuickLaunchPreference s_quick_launch_tap_back_select = {
 };
 
 static QuickLaunchPreference s_quick_launch_double_tap_back_select = {
+  .enabled = false,
+  .uuid = UUID_INVALID_INIT,
+};
+
+static QuickLaunchPreference s_quick_launch_triple_tap_back_up = {
+  .enabled = false,
+  .uuid = UUID_INVALID_INIT,
+};
+
+static QuickLaunchPreference s_quick_launch_triple_tap_back_down = {
+  .enabled = false,
+  .uuid = UUID_INVALID_INIT,
+};
+
+static QuickLaunchPreference s_quick_launch_triple_tap_back_select = {
   .enabled = false,
   .uuid = UUID_INVALID_INIT,
 };
@@ -762,6 +780,24 @@ static bool prv_set_s_quick_launch_tap_back_select(QuickLaunchPreference *pref) 
 static bool prv_set_s_quick_launch_double_tap_back_select(QuickLaunchPreference *pref) {
   prv_normalize_quick_launch_pref(pref);
   s_quick_launch_double_tap_back_select = *pref;
+  return true;
+}
+
+static bool prv_set_s_quick_launch_triple_tap_back_up(QuickLaunchPreference *pref) {
+  prv_normalize_quick_launch_pref(pref);
+  s_quick_launch_triple_tap_back_up = *pref;
+  return true;
+}
+
+static bool prv_set_s_quick_launch_triple_tap_back_down(QuickLaunchPreference *pref) {
+  prv_normalize_quick_launch_pref(pref);
+  s_quick_launch_triple_tap_back_down = *pref;
+  return true;
+}
+
+static bool prv_set_s_quick_launch_triple_tap_back_select(QuickLaunchPreference *pref) {
+  prv_normalize_quick_launch_pref(pref);
+  s_quick_launch_triple_tap_back_select = *pref;
   return true;
 }
 
@@ -1992,40 +2028,63 @@ void quick_launch_combo_up_down_set_enabled(bool enabled) {
   prv_pref_set(PREF_KEY_QUICK_LAUNCH_COMBO_UP_DOWN, &pref, sizeof(pref));
 }
 
-static QuickLaunchPreference *prv_combo_tap_pref(ButtonId button, bool double_tap,
+static QuickLaunchPreference *prv_combo_tap_pref(ButtonId button, uint8_t taps,
                                                  const char **key_out) {
+  PBL_ASSERTN((taps >= 1) && (taps <= QUICK_LAUNCH_COMBO_MAX_TAPS));
+  static const char *const s_up_keys[] = {
+    PREF_KEY_QUICK_LAUNCH_TAP_BACK_UP, PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_UP,
+    PREF_KEY_QUICK_LAUNCH_TRIPLE_TAP_BACK_UP
+  };
+  static const char *const s_down_keys[] = {
+    PREF_KEY_QUICK_LAUNCH_TAP_BACK_DOWN, PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_DOWN,
+    PREF_KEY_QUICK_LAUNCH_TRIPLE_TAP_BACK_DOWN
+  };
+  static const char *const s_select_keys[] = {
+    PREF_KEY_QUICK_LAUNCH_TAP_BACK_SELECT, PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_SELECT,
+    PREF_KEY_QUICK_LAUNCH_TRIPLE_TAP_BACK_SELECT
+  };
+  static QuickLaunchPreference *const s_up_prefs[] = {
+    &s_quick_launch_tap_back_up, &s_quick_launch_double_tap_back_up,
+    &s_quick_launch_triple_tap_back_up
+  };
+  static QuickLaunchPreference *const s_down_prefs[] = {
+    &s_quick_launch_tap_back_down, &s_quick_launch_double_tap_back_down,
+    &s_quick_launch_triple_tap_back_down
+  };
+  static QuickLaunchPreference *const s_select_prefs[] = {
+    &s_quick_launch_tap_back_select, &s_quick_launch_double_tap_back_select,
+    &s_quick_launch_triple_tap_back_select
+  };
+  const int index = taps - 1;
   switch (button) {
     case BUTTON_ID_UP:
-      *key_out =
-          double_tap ? PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_UP : PREF_KEY_QUICK_LAUNCH_TAP_BACK_UP;
-      return double_tap ? &s_quick_launch_double_tap_back_up : &s_quick_launch_tap_back_up;
+      *key_out = s_up_keys[index];
+      return s_up_prefs[index];
     case BUTTON_ID_DOWN:
-      *key_out = double_tap ? PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_DOWN
-                            : PREF_KEY_QUICK_LAUNCH_TAP_BACK_DOWN;
-      return double_tap ? &s_quick_launch_double_tap_back_down : &s_quick_launch_tap_back_down;
+      *key_out = s_down_keys[index];
+      return s_down_prefs[index];
     case BUTTON_ID_SELECT:
-      *key_out = double_tap ? PREF_KEY_QUICK_LAUNCH_DOUBLE_TAP_BACK_SELECT
-                            : PREF_KEY_QUICK_LAUNCH_TAP_BACK_SELECT;
-      return double_tap ? &s_quick_launch_double_tap_back_select : &s_quick_launch_tap_back_select;
+      *key_out = s_select_keys[index];
+      return s_select_prefs[index];
     default:
       PBL_ASSERTN(0); // Should not reach here: only Back+Up, Back+Down and Back+Select exist
       return NULL;
   }
 }
 
-bool quick_launch_combo_tap_is_enabled(ButtonId button, bool double_tap) {
+bool quick_launch_combo_tap_is_enabled(ButtonId button, uint8_t taps) {
   const char *key;
-  return prv_combo_tap_pref(button, double_tap, &key)->enabled;
+  return prv_combo_tap_pref(button, taps, &key)->enabled;
 }
 
-AppInstallId quick_launch_combo_tap_get_app(ButtonId button, bool double_tap) {
+AppInstallId quick_launch_combo_tap_get_app(ButtonId button, uint8_t taps) {
   const char *key;
-  return app_install_get_id_for_uuid(&prv_combo_tap_pref(button, double_tap, &key)->uuid);
+  return app_install_get_id_for_uuid(&prv_combo_tap_pref(button, taps, &key)->uuid);
 }
 
-void quick_launch_combo_tap_set_app(ButtonId button, bool double_tap, AppInstallId app_id) {
+void quick_launch_combo_tap_set_app(ButtonId button, uint8_t taps, AppInstallId app_id) {
   const char *key;
-  prv_combo_tap_pref(button, double_tap, &key);
+  prv_combo_tap_pref(button, taps, &key);
   QuickLaunchPreference pref = (QuickLaunchPreference){
     .enabled = true,
   };
@@ -2033,9 +2092,9 @@ void quick_launch_combo_tap_set_app(ButtonId button, bool double_tap, AppInstall
   prv_pref_set(key, &pref, sizeof(pref));
 }
 
-void quick_launch_combo_tap_set_enabled(ButtonId button, bool double_tap, bool enabled) {
+void quick_launch_combo_tap_set_enabled(ButtonId button, uint8_t taps, bool enabled) {
   const char *key;
-  QuickLaunchPreference pref = *prv_combo_tap_pref(button, double_tap, &key);
+  QuickLaunchPreference pref = *prv_combo_tap_pref(button, taps, &key);
   pref.enabled = enabled;
   prv_pref_set(key, &pref, sizeof(pref));
 }

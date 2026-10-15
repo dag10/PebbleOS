@@ -26,6 +26,6 @@ AppInstallId PBL_WEAK quick_launch_combo_up_down_get_app(void) {
   return 0;
 }
 
-AppInstallId PBL_WEAK quick_launch_combo_tap_get_app(ButtonId button, bool double_tap) {
+AppInstallId PBL_WEAK quick_launch_combo_tap_get_app(ButtonId button, uint8_t taps) {
   return 0;
 }

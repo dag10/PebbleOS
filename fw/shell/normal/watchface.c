@@ -25,8 +25,8 @@
 #include <system/passert.h>
 
 #define QUICK_LAUNCH_HOLD_MS (400)
-//! How long after a Back+Up/Down/Select tap is released a second one may start and count as a
-//! double tap. Matches the click recognizer's default multi-click timeout.
+//! How long after a Back+Up/Down/Select tap is released another one may start and count toward a
+//! double or triple tap. Matches the click recognizer's default multi-click timeout.
 #define COMBO_DOUBLE_TAP_WINDOW_MS (300)
 #define BIT_SET                    (1)
 #define BIT_CLEAR                  (0)
@@ -44,15 +44,17 @@ static uint8_t s_watchface_held_buttons = BIT_CLEAR;
 
 typedef enum {
   ComboTapStateIdle,
-  //! Back and s_combo_tap_button are down for a first tap whose double tap is assigned.
+  //! Back and s_combo_tap_button are down for a tap that a further tap could still extend.
   ComboTapStatePressed,
-  //! The first tap was released; a second one within the window makes it a double tap.
+  //! That tap was released; another one within the window adds to the count.
   ComboTapStateWaiting,
 } ComboTapState;
 
 static ComboTapState s_combo_tap_state = ComboTapStateIdle;
 //! BUTTON_ID_UP, BUTTON_ID_DOWN or BUTTON_ID_SELECT, the button tapped together with Back.
 static ButtonId s_combo_tap_button;
+//! Taps of the pending combo so far, 1 to QUICK_LAUNCH_COMBO_MAX_TAPS.
+static uint8_t s_combo_tap_count;
 static AppTimer *s_combo_tap_timer = NULL;
 //! Set once the current Back press has been part of a Back combo; its hold then does nothing.
 static bool s_back_press_had_combo = false;
@@ -411,25 +413,47 @@ static void prv_combo_tap_reset(void) {
 }
 
 //! Returns true if an app was launched.
-static bool prv_fire_combo_tap(ButtonId button, bool double_tap) {
+static bool prv_fire_combo_tap(ButtonId button, uint8_t taps) {
   prv_combo_tap_reset();
-  if (!quick_launch_combo_tap_is_enabled(button, double_tap)) {
+  if (!quick_launch_combo_tap_is_enabled(button, taps)) {
     return false;
   }
-  return prv_launch_quick_launch_app(quick_launch_combo_tap_get_app(button, double_tap),
-                                     BUTTON_ID_BACK, APP_LAUNCH_QUICK_LAUNCH,
-                                     APP_QUICK_LAUNCH_ACTION_COMBO);
+  return prv_launch_quick_launch_app(quick_launch_combo_tap_get_app(button, taps), BUTTON_ID_BACK,
+                                     APP_LAUNCH_QUICK_LAUNCH, APP_QUICK_LAUNCH_ACTION_COMBO);
 }
 
-//! No second tap came within the window, so the first was a single tap.
+//! The most taps of Back+@p button with an assignment, 0 if none.
+static uint8_t prv_combo_tap_max_taps(ButtonId button) {
+  for (uint8_t taps = QUICK_LAUNCH_COMBO_MAX_TAPS; taps > 0; taps--) {
+    if (quick_launch_combo_tap_is_enabled(button, taps)) {
+      return taps;
+    }
+  }
+  return 0;
+}
+
+//! No further tap came within the window, so the taps so far are the gesture.
 static void prv_combo_tap_timer_callback(void *data) {
   s_combo_tap_timer = NULL;
   const ButtonId button = s_combo_tap_button;
+  const uint8_t taps = s_combo_tap_count;
   s_combo_tap_state = ComboTapStateIdle;
   if (prv_should_ignore_button_click() || !app_manager_is_watchface_running()) {
     return;
   }
-  prv_fire_combo_tap(button, false /* double_tap */);
+  prv_fire_combo_tap(button, taps);
+}
+
+//! Counts a tap of Back+@p button: fires it once no more taps have an assignment, otherwise waits
+//! for its release and the next tap.
+static void prv_combo_tap_counted(ButtonId button, uint8_t taps) {
+  if (taps >= prv_combo_tap_max_taps(button)) {
+    prv_fire_combo_tap(button, taps);
+    return;
+  }
+  s_combo_tap_state = ComboTapStatePressed;
+  s_combo_tap_button = button;
+  s_combo_tap_count = taps;
 }
 
 static void prv_claim_combo_tap_buttons(ButtonId button) {
@@ -439,11 +463,11 @@ static void prv_claim_combo_tap_buttons(ButtonId button) {
   prv_cancel_combo_back_hold();
 }
 
-//! Tap Back+Up/Down/Select and their double taps. A tap starts when the second of the two buttons
-//! goes down, in either order. Without a double tap assigned, the tap fires right away; otherwise
-//! it waits for a second tap until COMBO_DOUBLE_TAP_WINDOW_MS after the first one's release, and
-//! the second tap fires as soon as it goes down. Returns true if @p pressed was taken by a
-//! combo, which cancels the buttons' own tap and hold.
+//! Tap Back+Up/Down/Select and their double and triple taps. A tap starts when the second of the
+//! two buttons goes down, in either order. A tap fires as soon as it goes down if no more taps
+//! have an assignment; otherwise it waits for another tap until COMBO_DOUBLE_TAP_WINDOW_MS after
+//! its release. Returns true if @p pressed was taken by a combo, which cancels the buttons' own
+//! tap and hold.
 static bool prv_check_combo_tap(ButtonId pressed) {
   if (s_combo_tap_state == ComboTapStatePressed) {
     if ((pressed == BUTTON_ID_BACK) || (pressed == s_combo_tap_button)) {
@@ -473,20 +497,22 @@ static bool prv_check_combo_tap(ButtonId pressed) {
 
   if (s_combo_tap_state == ComboTapStateWaiting) {
     if (is_combo && (other == s_combo_tap_button)) {
+      const uint8_t taps = s_combo_tap_count + 1;
       prv_claim_combo_tap_buttons(other);
-      prv_fire_combo_tap(other, true /* double_tap */);
+      prv_combo_tap_reset();
+      prv_combo_tap_counted(other, taps);
       return true;
     }
     if (!is_combo && (pressed == BUTTON_ID_BACK || pressed == s_combo_tap_button)) {
-      // Possibly the first half of the second tap; it does nothing on its own.
+      // Possibly the first half of the next tap; it does nothing on its own.
       click_recognizer_reset(&s_click_manager.recognizers[pressed]);
       if (pressed == BUTTON_ID_BACK) {
         s_back_press_had_combo = true;
       }
       return true;
     }
-    // Any other press ends the wait, firing the single tap first.
-    if (prv_fire_combo_tap(s_combo_tap_button, false /* double_tap */)) {
+    // Any other press ends the wait, firing the taps so far first.
+    if (prv_fire_combo_tap(s_combo_tap_button, s_combo_tap_count)) {
       click_recognizer_reset(&s_click_manager.recognizers[pressed]);
       return true;
     }
@@ -495,23 +521,16 @@ static bool prv_check_combo_tap(ButtonId pressed) {
   if (!is_combo) {
     return false;
   }
-  const bool tap_enabled = quick_launch_combo_tap_is_enabled(other, false /* double_tap */);
-  const bool double_tap_enabled = quick_launch_combo_tap_is_enabled(other, true /* double_tap */);
-  if (!tap_enabled && !double_tap_enabled) {
+  if (prv_combo_tap_max_taps(other) == 0) {
     return false;
   }
 
   prv_claim_combo_tap_buttons(other);
-  if (!double_tap_enabled) {
-    prv_fire_combo_tap(other, false /* double_tap */);
-    return true;
-  }
-  s_combo_tap_state = ComboTapStatePressed;
-  s_combo_tap_button = other;
+  prv_combo_tap_counted(other, 1);
   return true;
 }
 
-//! Releasing either button of a pressed combo starts the double tap window.
+//! Releasing either button of a pressed combo starts the window for the next tap.
 static void prv_combo_tap_handle_button_up(ButtonId released) {
   if ((s_combo_tap_state != ComboTapStatePressed) ||
       ((released != BUTTON_ID_BACK) && (released != s_combo_tap_button))) {
