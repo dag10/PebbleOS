@@ -51,6 +51,7 @@ enum QuietTimeItem {
 
 enum QuietTimeScheduleItem {
   QuietTimeScheduleItemCalendarAware,
+  QuietTimeScheduleItemFocus,
   QuietTimeScheduleItemWeekday,
   QuietTimeScheduleItemWeekend,
   QuietTimeScheduleItem_Count,
@@ -255,6 +256,16 @@ static void prv_schedule_draw_row_cb(SettingsCallbacks *context, GContext *ctx,
                                                     : i18n_ctx_get("QuietTime", "Disabled", data),
               buffer_length);
       break;
+    case QuietTimeScheduleItemFocus:
+      title = i18n_get("iOS Focus", data);
+      if (!do_not_disturb_is_focus_dnd_enabled()) {
+        strncpy(subtitle, i18n_ctx_get("QuietTime", "Disabled", data), buffer_length);
+      } else if (do_not_disturb_is_focus_active()) {
+        strncpy(subtitle, i18n_get("Focus On", data), buffer_length);
+      } else {
+        strncpy(subtitle, i18n_ctx_get("QuietTime", "Enabled", data), buffer_length);
+      }
+      break;
     case QuietTimeScheduleItemWeekday:
       title = i18n_get("Weekdays", data);
       if (do_not_disturb_is_schedule_enabled(WeekdaySchedule)) {
@@ -284,6 +295,9 @@ static void prv_schedule_select_click_cb(SettingsCallbacks *context, uint16_t ro
   switch (row) {
     case QuietTimeScheduleItemCalendarAware:
       do_not_disturb_toggle_smart_dnd();
+      break;
+    case QuietTimeScheduleItemFocus:
+      do_not_disturb_toggle_focus_dnd();
       break;
     case QuietTimeScheduleItemWeekday:
       prv_scheduled_dnd_menu_push(WeekdaySchedule, data);
