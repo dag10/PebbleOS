@@ -56,6 +56,7 @@ typedef struct {
 enum QuietTimeItem {
   QuietTimeItemManual,
   QuietTimeItemSmartDnd,
+  QuietTimeItemFocus,
   QuietTimeItemSchedule,
   QuietTimeItemInterruptions,
   QuietTimeItemNotifications,
@@ -615,6 +616,16 @@ static void prv_draw_row_cb(SettingsCallbacks *context, GContext *ctx, const Lay
       subtitle = do_not_disturb_is_smart_dnd_enabled() ? pbl_i18n_get("On", data)
                                                        : pbl_i18n_get("Off", data);
       break;
+    case QuietTimeItemFocus:
+      title = pbl_i18n_get("iOS Focus", data);
+      if (!do_not_disturb_is_focus_dnd_enabled()) {
+        subtitle = pbl_i18n_ctx_get("QuietTime", "Disabled", data);
+      } else if (do_not_disturb_is_focus_active()) {
+        subtitle = pbl_i18n_get("Focus On", data);
+      } else {
+        subtitle = pbl_i18n_ctx_get("QuietTime", "Enabled", data);
+      }
+      break;
     case QuietTimeItemSchedule:
       title = pbl_i18n_get("Schedule", data);
       break;
@@ -649,6 +660,9 @@ static void prv_select_click_cb(SettingsCallbacks *context, uint16_t row) {
       break;
     case QuietTimeItemSmartDnd:
       do_not_disturb_toggle_smart_dnd();
+      break;
+    case QuietTimeItemFocus:
+      do_not_disturb_toggle_focus_dnd();
       break;
     case QuietTimeItemSchedule:
       prv_schedule_submenu_push();
