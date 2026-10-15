@@ -36,6 +36,7 @@ typedef struct DoNotDisturbData {
   bool is_in_schedule_period;
   bool manually_override_dnd;
   bool was_active;
+  bool was_focus_active;
 } DoNotDisturbData;
 
 static DoNotDisturbData s_data;
@@ -47,6 +48,7 @@ static struct pbl_cron_job s_schedule_to_jobs[DND_NUM_SCHEDULE_SLOTS];
 static struct pbl_cron_job s_schedule_midnight_jobs[DND_NUM_SCHEDULE_SLOTS];
 
 static bool prv_is_smart_dnd_active(void);
+static bool prv_is_focus_dnd_active(void);
 static bool prv_is_schedule_active(void);
 static void prv_update_schedule_mode(void);
 
@@ -90,6 +92,12 @@ static void prv_toggle_smart_dnd(void *e_dialog) {
   prv_do_update();
 }
 
+static void prv_toggle_focus_dnd(void *e_dialog) {
+  alerts_preferences_dnd_set_focus_enabled(!alerts_preferences_dnd_is_focus_enabled());
+  s_data.manually_override_dnd = false;
+  prv_do_update();
+}
+
 static void prv_toggle_manual_dnd_from_action_menu(void *e_dialog) {
   do_not_disturb_toggle_push(ActionTogglePrompt_NoPrompt, false /* set_exit_reason */);
 }
@@ -114,6 +122,14 @@ static void prv_push_smart_dnd_first_use_dialog(void) {
       "calendar events.",
       &s_data);
   prv_push_first_use_dialog(msg, prv_toggle_smart_dnd);
+}
+
+static void prv_push_focus_dnd_first_use_dialog(void) {
+  const char *msg = pbl_i18n_get(
+      "iOS Focus enables Quiet Time automatically while your iPhone is in a Focus with the "
+      "Pebble filter. Add it in iPhone Settings > Focus.",
+      &s_data);
+  prv_push_first_use_dialog(msg, prv_toggle_focus_dnd);
 }
 
 static void prv_push_manual_dnd_first_use_dialog(ManualDNDFirstUseSource source) {
@@ -248,6 +264,19 @@ static bool prv_is_smart_dnd_active(void) {
           !s_data.manually_override_dnd);
 }
 
+static bool prv_is_focus_dnd_active(void) {
+  return (do_not_disturb_is_focus_active() && do_not_disturb_is_focus_dnd_enabled() &&
+          !s_data.manually_override_dnd);
+}
+
+static void prv_handle_pref_synced(void *data) {
+  const bool focus_active = do_not_disturb_is_focus_active();
+  // A Focus turning on ends a manual override, like a schedule boundary does
+  const bool clear_override = focus_active && !s_data.was_focus_active;
+  s_data.was_focus_active = focus_active;
+  prv_try_update_schedule_mode((void *)(uintptr_t)clear_override);
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //! Public Functions
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -258,7 +287,7 @@ PBL_SYSCALL(bool, sys_do_not_disturb_is_active) {
 
 bool do_not_disturb_is_active(void) {
   if (do_not_disturb_is_manually_enabled() || prv_is_schedule_active() ||
-      prv_is_smart_dnd_active()) {
+      prv_is_smart_dnd_active() || prv_is_focus_dnd_active()) {
     return true;
   }
   return false;
@@ -269,7 +298,8 @@ bool do_not_disturb_is_manually_enabled(void) {
 }
 
 void do_not_disturb_set_manually_enabled(bool enable) {
-  const bool is_auto_dnd = s_data.is_in_schedule_period || do_not_disturb_is_smart_dnd_enabled();
+  const bool is_auto_dnd = s_data.is_in_schedule_period || do_not_disturb_is_smart_dnd_enabled() ||
+                           do_not_disturb_is_focus_dnd_enabled();
   const bool was_active = do_not_disturb_is_active();
 
   alerts_preferences_dnd_set_manually_enabled(enable);
@@ -302,6 +332,22 @@ void do_not_disturb_toggle_smart_dnd(void) {
     prv_push_smart_dnd_first_use_dialog();
   } else {
     prv_toggle_smart_dnd(nullptr);
+  }
+}
+
+bool do_not_disturb_is_focus_dnd_enabled(void) {
+  return alerts_preferences_dnd_is_focus_enabled();
+}
+
+bool do_not_disturb_is_focus_active(void) {
+  return alerts_preferences_dnd_is_focus_active();
+}
+
+void do_not_disturb_toggle_focus_dnd(void) {
+  if (!alerts_preferences_check_and_set_first_use_complete(FirstUseSourceFocusDND)) {
+    prv_push_focus_dnd_first_use_dialog();
+  } else {
+    prv_toggle_focus_dnd(nullptr);
   }
 }
 
@@ -355,6 +401,7 @@ void do_not_disturb_delete_schedule_slot(unsigned int index) {
 void do_not_disturb_init(void) {
   s_data = (DoNotDisturbData){
     .was_active = false,
+    .was_focus_active = do_not_disturb_is_focus_active(),
   };
   prv_try_update_schedule_mode((void *)true);
 }
@@ -364,7 +411,7 @@ void do_not_disturb_handle_clock_change(void) {
 }
 
 void do_not_disturb_handle_pref_synced(void) {
-  prv_try_update_schedule_mode_callback(false);
+  pbl_sys_work_call(prv_handle_pref_synced, nullptr);
 }
 
 void do_not_disturb_handle_calendar_event(PebbleCalendarEvent *e) {
