@@ -21,6 +21,8 @@
  *   period ends.
  * - Scheduled: a daily period, with separate schedules for weekdays and weekends.
  * - Smart (calendar aware): active while a calendar event is ongoing.
+ * - iOS Focus: active while the phone reports an iOS Focus with the Pebble filter is on. A Focus
+ *   turning on ends a manual override.
  *
  * Every change of the active state posts a @c PEBBLE_DO_NOT_DISTURB_EVENT.
  * @{
@@ -104,6 +106,23 @@ bool do_not_disturb_is_smart_dnd_enabled(void);
 void do_not_disturb_toggle_smart_dnd(void);
 
 /**
+ * @brief Check whether Quiet Time follows iOS Focus.
+ *
+ * @return true if enabled.
+ */
+bool do_not_disturb_is_focus_dnd_enabled(void);
+
+/**
+ * @brief Check whether the phone reports an iOS Focus with the Pebble filter is on.
+ *
+ * @return true if a Focus is on, whether or not Quiet Time follows it.
+ */
+bool do_not_disturb_is_focus_active(void);
+
+/** @brief Toggle iOS Focus DND, showing the first use dialog the first time. */
+void do_not_disturb_toggle_focus_dnd(void);
+
+/**
  * @brief Get a DND schedule.
  *
  * @param type Schedule to get.
@@ -149,7 +168,7 @@ void do_not_disturb_init(void);
 void do_not_disturb_handle_clock_change(void);
 
 /**
- * @brief Handle a DND state preference (manual, smart or schedule) written by phone sync.
+ * @brief Handle a DND state preference (manual, smart, focus or schedule) written by phone sync.
  *
  * Re-evaluates the DND state so the change fires the usual event and updates the schedule timers.
  */
