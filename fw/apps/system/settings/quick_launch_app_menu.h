@@ -13,6 +13,8 @@ typedef enum QuickLaunchGesture {
   QuickLaunchGestureComboTap,
   //! Back tapped together with the button (Up, Down or Select) twice in a row.
   QuickLaunchGestureComboDoubleTap,
+  //! Back tapped together with the button (Up, Down or Select) three times in a row.
+  QuickLaunchGestureComboTripleTap,
 } QuickLaunchGesture;
 
 typedef enum QuickLaunchMenuCategory {
