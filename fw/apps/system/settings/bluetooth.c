@@ -135,8 +135,12 @@ static uint16_t prv_num_rows(SettingsBluetoothData *data) {
   return list_count(data->remote_list_head) + 1 + (data->show_ping_row ? 1 : 0);
 }
 
-static void prv_send_find_phone_cb(void *unused) {
-  system_message_send(SysMsgDrewFindPhone);
+static void prv_send_system_message_cb(void *type) {
+  system_message_send((SystemMessageType)(uintptr_t)type);
+}
+
+static void prv_send_system_message(SystemMessageType type) {
+  system_task_add_callback(prv_send_system_message_cb, (void *)(uintptr_t)type);
 }
 
 static void prv_ping_timer_cb(void *context) {
@@ -145,12 +149,14 @@ static void prv_ping_timer_cb(void *context) {
   settings_menu_mark_dirty(SettingsMenuItemBluetooth);
 }
 
-static void prv_ping_phone(SettingsBluetoothData *data) {
-  system_task_add_callback(prv_send_find_phone_cb, nullptr);
+static void prv_toggle_ping_phone(SettingsBluetoothData *data) {
   if (data->ping_timer) {
-    app_timer_reschedule(data->ping_timer, PING_PHONE_DURATION_MS);
+    app_timer_cancel(data->ping_timer);
+    data->ping_timer = nullptr;
+    prv_send_system_message(SysMsgDrewFindPhoneStop);
   } else {
     data->ping_timer = app_timer_register(PING_PHONE_DURATION_MS, prv_ping_timer_cb, data);
+    prv_send_system_message(SysMsgDrewFindPhone);
   }
   settings_menu_mark_dirty(SettingsMenuItemBluetooth);
 }
@@ -558,7 +564,7 @@ static void prv_select_click_cb(SettingsCallbacks *context, uint16_t row) {
     return;
   }
   if (prv_is_ping_row(data, row)) {
-    prv_ping_phone(data);
+    prv_toggle_ping_phone(data);
     return;
   }
   if (!data->remote_list_head) {
