@@ -75,7 +75,7 @@ AppInstallId quick_launch_combo_up_down_get_app(void) {
   return s_test_id_ql_down;
 }
 
-AppInstallId quick_launch_combo_tap_get_app(ButtonId button, bool double_tap) {
+AppInstallId quick_launch_combo_tap_get_app(ButtonId button, uint8_t taps) {
   return (button == BUTTON_ID_UP) ? s_test_id_ql_up : s_test_id_ql_down;
 }
 
