@@ -45,7 +45,6 @@
 #include <stubs_window_manager.h>
 
 #define PREF_KEY_DND_MANUALLY_ENABLED "dndManuallyEnabled"
-#define PREF_KEY_DND_FOCUS_ENABLED    "drewDndFocusEnabled"
 #define PREF_KEY_DND_FOCUS_ACTIVE     "drewDndFocusActive"
 
 static int s_num_dnd_events_put = 0;
@@ -166,11 +165,9 @@ void test_do_not_disturb__initialize(void) {
   if (do_not_disturb_is_smart_dnd_enabled()) {
     do_not_disturb_toggle_smart_dnd();
   }
-  alerts_preferences_dnd_set_focus_enabled(false);
   prv_sync_bool_pref_from_phone(PREF_KEY_DND_FOCUS_ACTIVE, false);
 
   alerts_preferences_check_and_set_first_use_complete(FirstUseSourceSmartDND);
-  alerts_preferences_check_and_set_first_use_complete(FirstUseSourceFocusDND);
 
   s_event_ongoing = false;
   s_num_dnd_events_put = 0;
@@ -740,45 +737,20 @@ void test_do_not_disturb__toggle_manually_enabled(void) {
 }
 
 void test_do_not_disturb__focus_dnd(void) {
-  cl_assert(do_not_disturb_is_focus_dnd_enabled() == false);
+  cl_assert(do_not_disturb_is_active() == false);
 
-  // A Focus does nothing until Quiet Time follows it
   prv_sync_bool_pref_from_phone(PREF_KEY_DND_FOCUS_ACTIVE, true);
   cl_assert(do_not_disturb_is_focus_active() == true);
-  cl_assert(do_not_disturb_is_active() == false);
-  cl_assert_equal_i(s_num_dnd_events_put, 0);
-
-  do_not_disturb_toggle_focus_dnd();
-  cl_assert(do_not_disturb_is_focus_dnd_enabled() == true);
   cl_assert(do_not_disturb_is_active() == true);
   cl_assert_equal_i(s_num_dnd_events_put, 1);
 
   prv_sync_bool_pref_from_phone(PREF_KEY_DND_FOCUS_ACTIVE, false);
+  cl_assert(do_not_disturb_is_focus_active() == false);
   cl_assert(do_not_disturb_is_active() == false);
   cl_assert_equal_i(s_num_dnd_events_put, 2);
-
-  prv_sync_bool_pref_from_phone(PREF_KEY_DND_FOCUS_ACTIVE, true);
-  cl_assert(do_not_disturb_is_active() == true);
-  cl_assert_equal_i(s_num_dnd_events_put, 3);
-
-  do_not_disturb_toggle_focus_dnd();
-  cl_assert(do_not_disturb_is_focus_dnd_enabled() == false);
-  cl_assert(do_not_disturb_is_active() == false);
-  cl_assert_equal_i(s_num_dnd_events_put, 4);
-}
-
-void test_do_not_disturb__focus_enabled_synced_from_phone(void) {
-  prv_sync_bool_pref_from_phone(PREF_KEY_DND_FOCUS_ACTIVE, true);
-  cl_assert(do_not_disturb_is_active() == false);
-
-  prv_sync_bool_pref_from_phone(PREF_KEY_DND_FOCUS_ENABLED, true);
-  cl_assert(do_not_disturb_is_focus_dnd_enabled() == true);
-  cl_assert(do_not_disturb_is_active() == true);
-  cl_assert_equal_i(s_num_dnd_events_put, 1);
 }
 
 void test_do_not_disturb__disabling_manual_dnd_should_override_focus(void) {
-  alerts_preferences_dnd_set_focus_enabled(true);
   prv_sync_bool_pref_from_phone(PREF_KEY_DND_FOCUS_ACTIVE, true);
   cl_assert(do_not_disturb_is_active() == true);
 

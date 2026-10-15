@@ -92,12 +92,6 @@ static void prv_toggle_smart_dnd(void *e_dialog) {
   prv_do_update();
 }
 
-static void prv_toggle_focus_dnd(void *e_dialog) {
-  alerts_preferences_dnd_set_focus_enabled(!alerts_preferences_dnd_is_focus_enabled());
-  s_data.manually_override_dnd = false;
-  prv_do_update();
-}
-
 static void prv_toggle_manual_dnd_from_action_menu(void *e_dialog) {
   do_not_disturb_toggle_push(ActionTogglePrompt_NoPrompt, false /* set_exit_reason */);
 }
@@ -122,14 +116,6 @@ static void prv_push_smart_dnd_first_use_dialog(void) {
       "calendar events.",
       &s_data);
   prv_push_first_use_dialog(msg, prv_toggle_smart_dnd);
-}
-
-static void prv_push_focus_dnd_first_use_dialog(void) {
-  const char *msg = i18n_get(
-      "iOS Focus enables Quiet Time automatically while your iPhone is in a Focus with the "
-      "Pebble filter. Add it in iPhone Settings > Focus.",
-      &s_data);
-  prv_push_first_use_dialog(msg, prv_toggle_focus_dnd);
 }
 
 static void prv_push_manual_dnd_first_use_dialog(ManualDNDFirstUseSource source) {
@@ -254,8 +240,7 @@ static bool prv_is_smart_dnd_active(void) {
 }
 
 static bool prv_is_focus_dnd_active(void) {
-  return (do_not_disturb_is_focus_active() && do_not_disturb_is_focus_dnd_enabled() &&
-          !s_data.manually_override_dnd);
+  return (do_not_disturb_is_focus_active() && !s_data.manually_override_dnd);
 }
 
 static void prv_handle_pref_synced(void *data) {
@@ -289,7 +274,7 @@ bool do_not_disturb_is_manually_enabled(void) {
 void do_not_disturb_set_manually_enabled(bool enable) {
   const bool is_auto_dnd = prv_is_current_schedule_enabled() ||
                            do_not_disturb_is_smart_dnd_enabled() ||
-                           do_not_disturb_is_focus_dnd_enabled();
+                           do_not_disturb_is_focus_active();
   const bool was_active = do_not_disturb_is_active();
 
   alerts_preferences_dnd_set_manually_enabled(enable);
@@ -325,20 +310,8 @@ void do_not_disturb_toggle_smart_dnd(void) {
   }
 }
 
-bool do_not_disturb_is_focus_dnd_enabled(void) {
-  return alerts_preferences_dnd_is_focus_enabled();
-}
-
 bool do_not_disturb_is_focus_active(void) {
   return alerts_preferences_dnd_is_focus_active();
-}
-
-void do_not_disturb_toggle_focus_dnd(void) {
-  if (!alerts_preferences_check_and_set_first_use_complete(FirstUseSourceFocusDND)) {
-    prv_push_focus_dnd_first_use_dialog();
-  } else {
-    prv_toggle_focus_dnd(nullptr);
-  }
 }
 
 void do_not_disturb_get_schedule(DoNotDisturbScheduleType type,
