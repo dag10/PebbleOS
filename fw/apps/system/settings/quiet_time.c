@@ -16,6 +16,7 @@
 
 #include <applib/ui/action_menu_window_private.h>
 #include <applib/ui/app_window_stack.h>
+#include <applib/ui/dialogs/expandable_dialog.h>
 #include <applib/ui/menu_layer.h>
 #include <applib/ui/time_range_selection_window.h>
 #include <kernel/pbl_malloc.h>
@@ -258,13 +259,10 @@ static void prv_schedule_draw_row_cb(SettingsCallbacks *context, GContext *ctx,
       break;
     case QuietTimeScheduleItemFocus:
       title = i18n_get("iOS Focus", data);
-      if (!do_not_disturb_is_focus_dnd_enabled()) {
-        strncpy(subtitle, i18n_ctx_get("QuietTime", "Disabled", data), buffer_length);
-      } else if (do_not_disturb_is_focus_active()) {
-        strncpy(subtitle, i18n_get("Focus On", data), buffer_length);
-      } else {
-        strncpy(subtitle, i18n_ctx_get("QuietTime", "Enabled", data), buffer_length);
-      }
+      strncpy(subtitle,
+              do_not_disturb_is_focus_active() ? i18n_get("Focus On", data)
+                                               : i18n_get("Focus Off", data),
+              buffer_length);
       break;
     case QuietTimeScheduleItemWeekday:
       title = i18n_get("Weekdays", data);
@@ -289,6 +287,22 @@ static void prv_schedule_draw_row_cb(SettingsCallbacks *context, GContext *ctx,
   app_free(subtitle);
 }
 
+static void prv_push_focus_help_dialog(void) {
+  const void *i18n_owner = prv_push_focus_help_dialog;
+  const char *header = i18n_get("iOS Focus", i18n_owner);
+  const char *text = i18n_get(
+      "Quiet Time turns on with any iPhone Focus that has the Pebble Quiet Time filter. Add it in "
+      "iPhone Settings > Focus > Focus Filters.",
+      i18n_owner);
+  ExpandableDialog *expandable_dialog = expandable_dialog_create_with_params(
+      WINDOW_NAME("Quiet Time iOS Focus"), RESOURCE_ID_QUIET_TIME, text, GColorBlack,
+      GColorMediumAquamarine, nullptr, RESOURCE_ID_ACTION_BAR_ICON_CHECK,
+      expandable_dialog_close_cb);
+  expandable_dialog_set_header(expandable_dialog, header);
+  i18n_free_all(i18n_owner);
+  app_expandable_dialog_push(expandable_dialog);
+}
+
 static void prv_schedule_select_click_cb(SettingsCallbacks *context, uint16_t row) {
   SettingsQuietTimeScheduleData *data = (SettingsQuietTimeScheduleData *)context;
 
@@ -297,7 +311,7 @@ static void prv_schedule_select_click_cb(SettingsCallbacks *context, uint16_t ro
       do_not_disturb_toggle_smart_dnd();
       break;
     case QuietTimeScheduleItemFocus:
-      do_not_disturb_toggle_focus_dnd();
+      prv_push_focus_help_dialog();
       break;
     case QuietTimeScheduleItemWeekday:
       prv_scheduled_dnd_menu_push(WeekdaySchedule, data);
