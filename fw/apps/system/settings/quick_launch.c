@@ -41,6 +41,9 @@ typedef enum {
   ROW_DOUBLE_TAP_BACK_UP,
   ROW_DOUBLE_TAP_BACK_DOWN,
   ROW_DOUBLE_TAP_BACK_SELECT,
+  ROW_TRIPLE_TAP_BACK_UP,
+  ROW_TRIPLE_TAP_BACK_DOWN,
+  ROW_TRIPLE_TAP_BACK_SELECT,
 
   NUM_ROWS,
 } QuickLaunchRow;
@@ -64,6 +67,9 @@ static const QuickLaunchBinding s_row_bindings[NUM_ROWS] = {
   [ROW_DOUBLE_TAP_BACK_UP] = {QuickLaunchGestureComboDoubleTap, BUTTON_ID_UP},
   [ROW_DOUBLE_TAP_BACK_DOWN] = {QuickLaunchGestureComboDoubleTap, BUTTON_ID_DOWN},
   [ROW_DOUBLE_TAP_BACK_SELECT] = {QuickLaunchGestureComboDoubleTap, BUTTON_ID_SELECT},
+  [ROW_TRIPLE_TAP_BACK_UP] = {QuickLaunchGestureComboTripleTap, BUTTON_ID_UP},
+  [ROW_TRIPLE_TAP_BACK_DOWN] = {QuickLaunchGestureComboTripleTap, BUTTON_ID_DOWN},
+  [ROW_TRIPLE_TAP_BACK_SELECT] = {QuickLaunchGestureComboTripleTap, BUTTON_ID_SELECT},
 };
 
 typedef enum {
@@ -112,6 +118,15 @@ static const char *s_row_titles[NUM_ROWS] = {
   /// Shown in Quick Launch Settings as the title of the option for tapping back and center
   /// together twice in a row.
   [ROW_DOUBLE_TAP_BACK_SELECT] = i18n_noop("Double Tap Back+Center"),
+  /// Shown in Quick Launch Settings as the title of the option for tapping back and up together
+  /// three times in a row.
+  [ROW_TRIPLE_TAP_BACK_UP] = i18n_noop("Triple Tap Back+Up"),
+  /// Shown in Quick Launch Settings as the title of the option for tapping back and down
+  /// together three times in a row.
+  [ROW_TRIPLE_TAP_BACK_DOWN] = i18n_noop("Triple Tap Back+Down"),
+  /// Shown in Quick Launch Settings as the title of the option for tapping back and center
+  /// together three times in a row.
+  [ROW_TRIPLE_TAP_BACK_SELECT] = i18n_noop("Triple Tap Back+Center"),
 };
 
 static const char *s_category_row_titles[CategoryRowCount] = {
