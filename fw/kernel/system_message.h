@@ -20,6 +20,7 @@ typedef enum SystemMessageType {
   SysMsgFirmwareStartResponse = 0x0a,
   SysMsgFirmwareStatus = 0x0b,         // Phone -> Watch request for partial fw install info
   SysMsgFirmwareStatusResponse = 0x0c, // Watch -> Phone response of what fw is partially installed
+  SysMsgDrewFindPhone = 0xd0,          // Watch -> Phone, DrewPebbleOS: play a sound to find it
 } SystemMessageType;
 
 typedef struct PBL_PACKED SysMsgSmoothFirmwareStartPayload {
