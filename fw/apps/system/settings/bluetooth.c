@@ -19,11 +19,14 @@
 #include <pbl/services/bluetooth/bluetooth_persistent_storage.h>
 #include <pbl/services/bluetooth/local_id.h>
 #include <pbl/services/bluetooth/pairability.h>
+#include <pbl/services/comm_session/session.h>
 #include <pbl/services/i18n/i18n.h>
+#include <pbl/services/system_task.h>
 #include <pbl/util/string.h>
 
 #include <applib/app.h>
 #include <applib/app_focus_service.h>
+#include <applib/app_timer.h>
 #include <applib/event_service_client.h>
 #include <applib/fonts/fonts.h>
 #include <applib/graphics/graphics.h>
@@ -33,6 +36,7 @@
 #include <comm/ble/gap_le_device_name.h>
 #include <comm/bt_lock.h>
 #include <kernel/pbl_malloc.h>
+#include <kernel/system_message.h>
 #include <kernel/ui/kernel_ui.h>
 #include <kernel/ui/system_icons.h>
 #include <resource/resource_ids.auto.h>
@@ -44,6 +48,9 @@
 #define SHARING_HEART_RATE_EXTRA_HEIGHT_PX (18)
 
 #define HINT_VERTICAL_MARGIN_PX (4)
+
+// How long the phone plays its sound for.
+#define PING_PHONE_DURATION_MS (5000)
 
 typedef enum SettingsBluetooth {
   SettingsBluetoothAirplaneMode,
@@ -79,6 +86,9 @@ typedef struct SettingsBluetoothData {
   char header_buffer[HEADER_BUFFER_SIZE];
   ToggleState toggle_state;
   bool did_enable_pairability;
+  //! Row of the Ping Phone item beneath the connected phone, 0 when it isn't shown.
+  uint16_t ping_row;
+  AppTimer *ping_timer;
 
   EventServiceInfo bt_airplane_event_info;
   EventServiceInfo bt_connection_event_info;
@@ -101,6 +111,63 @@ static void settings_bluetooth_toggle_airplane_mode(SettingsBluetoothData *data)
 
 bool is_remote_connected(StoredRemote *remote) {
   return (remote->ble.connection != nullptr);
+}
+
+static bool prv_remote_is_connected_filter(ListNode *node, void *unused) {
+  return is_remote_connected((StoredRemote *)node);
+}
+
+static uint16_t prv_get_ping_row(SettingsBluetoothData *data) {
+  // The cache keeps the phone's capabilities while its app briefly disconnects.
+  PebbleProtocolCapabilities capabilities;
+  bt_persistent_storage_get_cached_system_capabilities(&capabilities);
+  if (!capabilities.find_phone_support) {
+    return 0;
+  }
+  ListNode *phone = list_find(data->remote_list_head, prv_remote_is_connected_filter, nullptr);
+  if (!phone) {
+    return 0;
+  }
+  // Row 0 is the connection toggle, so the phone's row is its 1-based list position.
+  return list_count_to_head_from(phone) + 1;
+}
+
+static bool prv_is_ping_row(SettingsBluetoothData *data, uint16_t row) {
+  return data->ping_row && row == data->ping_row;
+}
+
+static uint16_t prv_remote_index_for_row(SettingsBluetoothData *data, uint16_t row) {
+  return (data->ping_row && row > data->ping_row) ? row - 2 : row - 1;
+}
+
+static uint16_t prv_num_rows(SettingsBluetoothData *data) {
+  return list_count(data->remote_list_head) + 1 + (data->ping_row ? 1 : 0);
+}
+
+static void prv_send_system_message_cb(void *type) {
+  system_message_send((SystemMessageType)(uintptr_t)type);
+}
+
+static void prv_send_system_message(SystemMessageType type) {
+  system_task_add_callback(prv_send_system_message_cb, (void *)(uintptr_t)type);
+}
+
+static void prv_ping_timer_cb(void *context) {
+  SettingsBluetoothData *data = context;
+  data->ping_timer = nullptr;
+  settings_menu_mark_dirty(SettingsMenuItemBluetooth);
+}
+
+static void prv_toggle_ping_phone(SettingsBluetoothData *data) {
+  if (data->ping_timer) {
+    app_timer_cancel(data->ping_timer);
+    data->ping_timer = nullptr;
+    prv_send_system_message(SysMsgFindPhoneStop);
+  } else {
+    data->ping_timer = app_timer_register(PING_PHONE_DURATION_MS, prv_ping_timer_cb, data);
+    prv_send_system_message(SysMsgFindPhone);
+  }
+  settings_menu_mark_dirty(SettingsMenuItemBluetooth);
 }
 
 static int remote_comparator(void *remote_data, void *other_data) {
@@ -371,8 +438,9 @@ static void draw_stored_remote_item(GContext *ctx, const Layer *cell_layer, uint
 static int16_t prv_get_row_base_height(SettingsBluetoothData *data, uint16_t row) {
   int16_t height = menu_cell_basic_cell_height();
 #ifdef CONFIG_SERVICE_BLE_HRM
-  if (row > 0) {
-    StoredRemote *remote = (StoredRemote *)list_get_at(data->remote_list_head, row - 1);
+  if (row > 0 && !prv_is_ping_row(data, row)) {
+    StoredRemote *remote =
+        (StoredRemote *)list_get_at(data->remote_list_head, prv_remote_index_for_row(data, row));
     if (settings_bluetooth_is_sharing_heart_rate_for_stored_remote(remote)) {
       height += SHARING_HEART_RATE_EXTRA_HEIGHT_PX;
     }
@@ -405,7 +473,7 @@ static int16_t prv_get_hint_height_for_font(SettingsBluetoothData *data, GFont f
 }
 
 static int16_t prv_get_hint_height(SettingsBluetoothData *data, uint16_t row, GFont *font) {
-  if (row != list_count(data->remote_list_head)) {
+  if (row != prv_num_rows(data) - 1) {
     return 0;
   }
   const int16_t max_height =
@@ -437,7 +505,8 @@ static void prv_draw_hint(GContext *ctx, SettingsBluetoothData *data, const GRec
 
 static uint16_t prv_num_rows_cb(SettingsCallbacks *context) {
   SettingsBluetoothData *data = (SettingsBluetoothData *)context;
-  return list_count(data->remote_list_head) + 1;
+  data->ping_row = prv_get_ping_row(data);
+  return prv_num_rows(data);
 }
 
 static int16_t prv_row_height_cb(SettingsCallbacks *context, uint16_t row, bool is_selected) {
@@ -483,9 +552,12 @@ static void prv_draw_row_cb(SettingsCallbacks *context, GContext *ctx, const Lay
     }
 
     menu_cell_basic_draw(ctx, cell_layer, title, subtitle, icon);
+  } else if (prv_is_ping_row(data, row)) {
+    const char *subtitle =
+        data->ping_timer ? i18n_get("Pinging...", data) : i18n_get("Play a sound", data);
+    menu_cell_basic_draw(ctx, cell_layer, i18n_get("Ping Phone", data), subtitle, nullptr);
   } else {
-    const uint16_t device_index = row - 1;
-    draw_stored_remote_item(ctx, cell_layer, device_index, data);
+    draw_stored_remote_item(ctx, cell_layer, prv_remote_index_for_row(data, row), data);
   }
 #if PBL_RECT
   ((Layer *)cell_layer)->bounds.size.h += hint_height;
@@ -501,11 +573,16 @@ static void prv_select_click_cb(SettingsCallbacks *context, uint16_t row) {
     settings_bluetooth_toggle_airplane_mode(data);
     return;
   }
+  if (prv_is_ping_row(data, row)) {
+    prv_toggle_ping_phone(data);
+    return;
+  }
   if (!data->remote_list_head) {
     return;
   }
   prv_reload_remote_list(data);
-  StoredRemote *remote = (StoredRemote *)list_get_at(data->remote_list_head, row - 1);
+  StoredRemote *remote =
+      (StoredRemote *)list_get_at(data->remote_list_head, prv_remote_index_for_row(data, row));
   settings_remote_menu_push(data, remote);
 }
 
@@ -594,6 +671,9 @@ static void prv_hide_cb(SettingsCallbacks *context) {
 static void prv_deinit_cb(SettingsCallbacks *context) {
   SettingsBluetoothData *data = (SettingsBluetoothData *)context;
 
+  if (data->ping_timer) {
+    app_timer_cancel(data->ping_timer);
+  }
   i18n_free_all(data);
 
   app_idle_timeout_set_duration(APP_IDLE_TIMEOUT_MENU_MS);

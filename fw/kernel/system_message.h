@@ -29,6 +29,8 @@ typedef enum SystemMessageType {
   SysMsgLanguageSelect = 0x11,
   // 0x12 is skipped to avoid confusion with the endpoint ID
   SysMsgLanguageSelectResponse = 0x13,
+  SysMsgFindPhone = 0x14,     // Watch -> Phone request to play a sound to find the phone
+  SysMsgFindPhoneStop = 0x15, // Watch -> Phone request to stop that sound early
 } SystemMessageType;
 
 typedef struct PBL_PACKED SysMsgSmoothFirmwareStartPayload {

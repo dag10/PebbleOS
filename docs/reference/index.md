@@ -27,6 +27,7 @@ the phone apps.
 :maxdepth: 1
 
 blob-db.md
+find-phone.md
 language-packs.md
 local-microphone.md
 ```
