@@ -35,10 +35,12 @@ AppInstallId quick_launch_combo_up_down_get_app(void);
 void quick_launch_combo_up_down_set_app(AppInstallId app_id);
 void quick_launch_combo_up_down_set_enabled(bool enabled);
 
-//! Back tapped together with @p button (BUTTON_ID_UP, BUTTON_ID_DOWN or BUTTON_ID_SELECT), once
-//! or, with
-//! @p double_tap, twice in a row.
-bool quick_launch_combo_tap_is_enabled(ButtonId button, bool double_tap);
-AppInstallId quick_launch_combo_tap_get_app(ButtonId button, bool double_tap);
-void quick_launch_combo_tap_set_app(ButtonId button, bool double_tap, AppInstallId app_id);
-void quick_launch_combo_tap_set_enabled(ButtonId button, bool double_tap, bool enabled);
+//! The most taps in a row a Back combo counts, Tap, Double Tap and Triple Tap.
+#define QUICK_LAUNCH_COMBO_MAX_TAPS (3)
+
+//! Back tapped together with @p button (BUTTON_ID_UP, BUTTON_ID_DOWN or BUTTON_ID_SELECT)
+//! @p taps times in a row, 1 to QUICK_LAUNCH_COMBO_MAX_TAPS.
+bool quick_launch_combo_tap_is_enabled(ButtonId button, uint8_t taps);
+AppInstallId quick_launch_combo_tap_get_app(ButtonId button, uint8_t taps);
+void quick_launch_combo_tap_set_app(ButtonId button, uint8_t taps, AppInstallId app_id);
+void quick_launch_combo_tap_set_enabled(ButtonId button, uint8_t taps, bool enabled);
