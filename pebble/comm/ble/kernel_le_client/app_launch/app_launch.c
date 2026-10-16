@@ -72,3 +72,10 @@ static void prv_session_cb(struct pbl_pp_session *session, enum pbl_pp_session_e
 }
 
 PBL_PP_SESSION_LISTENER_DEFINE(app_launch, prv_session_cb, nullptr);
+
+// -------------------------------------------------------------------------------------------------
+//! The read is only there to make iOS wake or relaunch the phone app; its value is unused.
+void app_launch_handle_read_response(pbl_bt_characteristic_t characteristic, const uint8_t *value,
+                                     size_t value_length, enum pbl_bt_gatt_error error) {
+  PBL_LOG_DBG("App launch read done: err=%u", error);
+}
