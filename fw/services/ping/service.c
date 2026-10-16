@@ -8,6 +8,8 @@
 #include <pbl/logging/logging.h>
 #include <pbl/services/accel_manager.h>
 #include <pbl/services/comm_session/session.h>
+#include <pbl/services/ping.h>
+#include <pbl/services/regular_timer.h>
 #include <pbl/services/system_task.h>
 #include <pbl/util/byteorder.h>
 
@@ -62,6 +64,32 @@ static void prv_send_ping_kernel_bg_cb(void *unused) {
   }
 
   s_is_ping_kernel_bg_callback_scheduled = false;
+}
+
+#define HEARTBEAT_PERIOD_MINS (5)
+
+static RegularTimerInfo s_heartbeat_timer;
+static uint32_t s_heartbeat_cookie;
+
+static void prv_send_heartbeat_kernel_bg_cb(void *unused) {
+  CommSession *session = comm_session_get_system_session();
+  if (!session || !comm_session_has_capability(session, CommSessionDrewHeartbeatSupport)) {
+    return;
+  }
+  PingMsgV1 ping_msg =
+      (PingMsgV1){.hdr = {.cmd = 0, .cookie = pbl_cpu_to_be32(++s_heartbeat_cookie)}};
+  bool success = comm_session_send_data(session, PING_ENDPOINT, (const uint8_t *)&ping_msg,
+                                        sizeof(ping_msg), COMM_SESSION_DEFAULT_TIMEOUT);
+  PBL_LOG_DBG("Sent heartbeat c=%" PRIu32 ", success=%d", s_heartbeat_cookie, (int)success);
+}
+
+static void prv_heartbeat_timer_cb(void *unused) {
+  system_task_add_callback(prv_send_heartbeat_kernel_bg_cb, nullptr);
+}
+
+void ping_heartbeat_init(void) {
+  s_heartbeat_timer = (RegularTimerInfo){.cb = prv_heartbeat_timer_cb};
+  regular_timer_add_multiminute_callback(&s_heartbeat_timer, HEARTBEAT_PERIOD_MINS);
 }
 
 // ------------------------------------------------------------------------------------------------------------
