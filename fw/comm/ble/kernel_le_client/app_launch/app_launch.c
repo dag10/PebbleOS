@@ -65,3 +65,10 @@ void app_launch_trigger(void) {
     PBL_LOG_ERR("App relaunch failed: %u", err);
   }
 }
+
+// -------------------------------------------------------------------------------------------------
+//! The read is only there to make iOS wake or relaunch the phone app; its value is unused.
+void app_launch_handle_read_response(pbl_bt_characteristic_t characteristic, const uint8_t *value,
+                                     size_t value_length, enum pbl_bt_gatt_error error) {
+  PBL_LOG_DBG("App launch read done: err=%u", error);
+}
