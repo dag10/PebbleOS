@@ -163,7 +163,7 @@ static const KernelLEClient s_clients[KernelLEClientNum] = {
         .handle_service_removed = app_launch_handle_service_removed,
         .invalidate_all_references = app_launch_invalidate_all_references,
         .can_handle_characteristic = app_launch_can_handle_characteristic,
-        .handle_read_or_notification = nullptr,
+        .handle_read_or_notification = app_launch_handle_read_response,
       },
   [KernelLEClientDIS] = {
     .debug_name = "DIS",
