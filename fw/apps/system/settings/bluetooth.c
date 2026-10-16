@@ -119,8 +119,11 @@ static bool prv_can_ping_phone(SettingsBluetoothData *data) {
   if (!first || !is_remote_connected(first)) {
     return false;
   }
-  CommSession *session = comm_session_get_system_session();
-  return session && comm_session_has_capability(session, CommSessionDrewFindPhoneSupport);
+  // The cache outlives the system session and is cleared only when the phone changes, so the
+  // row stays while the app is briefly disconnected.
+  PebbleProtocolCapabilities capabilities;
+  bt_persistent_storage_get_cached_system_capabilities(&capabilities);
+  return (capabilities.flags & CommSessionDrewFindPhoneSupport) != 0;
 }
 
 static bool prv_is_ping_row(SettingsBluetoothData *data, uint16_t row) {
