@@ -12,6 +12,7 @@
 #include <pbl/pp/send.h>
 #include <pbl/pp/session.h>
 #include <pbl/services/accel_manager.h>
+#include <pbl/services/ping.h>
 #include <pbl/util/byteorder.h>
 
 #include <applib/ui/dialogs/dialog.h>
@@ -65,6 +66,33 @@ static void prv_send_ping_kernel_bg_cb(void *unused) {
   }
 
   s_is_ping_kernel_bg_callback_scheduled = false;
+}
+
+#define HEARTBEAT_PERIOD_MINS (5)
+
+static struct pbl_wallclock_work s_heartbeat_timer;
+static uint32_t s_heartbeat_cookie;
+
+static void prv_send_heartbeat_kernel_bg_cb(void *unused) {
+  struct pbl_pp_session *session = pbl_pp_session_get_system();
+  if (!session || !pbl_pp_session_has_capability(session, PBL_PP_CAP_DREW_HEARTBEAT)) {
+    return;
+  }
+  PingMsgV1 ping_msg =
+      (PingMsgV1){.hdr = {.cmd = 0, .cookie = pbl_cpu_to_be32(++s_heartbeat_cookie)}};
+  bool success = 0 == pbl_pp_send(session, PBL_PP_ENDPOINT_PING, (const uint8_t *)&ping_msg,
+                                  sizeof(ping_msg), PBL_PP_DEFAULT_TIMEOUT_MS);
+  PBL_LOG_DBG("Sent heartbeat c=%" PRIu32 ", success=%d", s_heartbeat_cookie, (int)success);
+}
+
+static void prv_heartbeat_timer_cb(struct pbl_work *work) {
+  // Offload to SysWorkq, because pbl_pp_send() may block.
+  pbl_sys_work_call(prv_send_heartbeat_kernel_bg_cb, nullptr);
+}
+
+void ping_heartbeat_init(void) {
+  pbl_wallclock_work_init(&s_heartbeat_timer, prv_heartbeat_timer_cb);
+  pbl_wallclock_work_start(&pbl_sys_workq_high, &s_heartbeat_timer, 60, HEARTBEAT_PERIOD_MINS);
 }
 
 // ------------------------------------------------------------------------------------------------------------
