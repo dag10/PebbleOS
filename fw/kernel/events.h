@@ -129,6 +129,8 @@ typedef enum {
   PEBBLE_LANGUAGE_CHANGE_EVENT,
   PEBBLE_MIC_STREAM_EVENT,
   PEBBLE_MIC_CAPTURE_EVENT,
+  //! DrewPebbleOS: the updates list, check state or an install status changed (drew_updates.h)
+  PEBBLE_DREW_UPDATES_EVENT,
 
   PEBBLE_NUM_EVENTS
 } PebbleEventType;
