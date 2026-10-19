@@ -1,6 +1,7 @@
 /* SPDX-FileCopyrightText: 2026 Core Devices LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <pbl/kernel/work.h>
 #include <pbl/pp/session.h>
 
 #include <applib/ui/dialogs/simple_dialog.h>
@@ -33,6 +34,18 @@ FAKE_VALUE_FUNC(int, pbl_pp_send, struct pbl_pp_session *, uint16_t, const uint8
 
 struct pbl_pp_session *pbl_pp_session_get_system(void) {
   return nullptr;
+}
+
+bool pbl_pp_session_has_capability(const struct pbl_pp_session *session,
+                                   enum pbl_pp_capability capability) {
+  return false;
+}
+
+void pbl_wallclock_work_init(struct pbl_wallclock_work *w, pbl_work_fn_t fn) {
+}
+
+void pbl_wallclock_work_start(struct pbl_workq *q, struct pbl_wallclock_work *w, uint32_t unit_s,
+                              uint32_t every) {
 }
 
 bool battery_is_usb_connected(void) {
