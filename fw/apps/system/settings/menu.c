@@ -14,6 +14,9 @@
 #include "themes.h"
 #include "time.h"
 #include "timeline.h"
+#ifdef CONFIG_SERVICE_DREW_UPDATES
+#include "updates.h"
+#endif
 #include "vibe_patterns.h"
 
 #include <pbl/kernel/assert.h>
@@ -32,6 +35,9 @@ static const SettingsModuleGetMetadata s_submodule_registry[] = {
   [SettingsMenuItemDateTime] = settings_time_get_info,
   [SettingsMenuItemDisplay] = settings_display_get_info,
   [SettingsMenuItemThemes] = settings_themes_get_info,
+#ifdef CONFIG_SERVICE_DREW_UPDATES
+  [SettingsMenuItemUpdates] = settings_updates_get_info,
+#endif
   [SettingsMenuItemSystem] = settings_system_get_info,
 };
 
