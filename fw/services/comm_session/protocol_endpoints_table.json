@@ -53,6 +53,7 @@
     [ 45531, "0xb1db", "private", "blob_db_protocol_msg_callback", null, null ],
     [ 45787, "0xb2db", "private", "blob_db2_protocol_msg_callback", null, null ],
     [ 51966, "0xcafe", "any",     "comm_poll_remote_protocol_msg_callback", null, null ],
-    [ 51967, "0xcaff", "any",     "xsbug_protocol_msg_callback", null, null ]
+    [ 51967, "0xcaff", "any",     "xsbug_protocol_msg_callback", null, null ],
+    [ 56833, "0xde01", "private", "drew_updates_protocol_msg_callback", null, null ]
   ]
 }

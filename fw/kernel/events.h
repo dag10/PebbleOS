@@ -131,6 +131,8 @@ typedef enum {
   //! Emitted when the effective dark mode flips, whether the cause is the mode pref or the
   //! schedule. Only emitted on changes of \ref system_theme_is_dark_mode.
   PEBBLE_DARK_MODE_CHANGE_EVENT,
+  //! DrewPebbleOS: the updates list, check state or an install status changed (drew_updates.h)
+  PEBBLE_DREW_UPDATES_EVENT,
 
   PEBBLE_NUM_EVENTS
 } PebbleEventType;

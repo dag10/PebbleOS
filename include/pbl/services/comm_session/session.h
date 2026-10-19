@@ -95,6 +95,8 @@ typedef enum {
   /** Phone tracks which notification the watch is displaying. */
   CommSessionNotificationWindowStateSupport = 1 << 26,
   /** DrewPebbleOS: phone plays a sound on SysMsgDrewFindPhone. Kept far above upstream's bits. */
+  /** DrewPebbleOS: phone speaks the Settings > Updates protocol (drew_updates.h). */
+  CommSessionDrewUpdatesSupport = 1 << 28,
   /** DrewPebbleOS: phone answers pings and wants one every few minutes to wake it. */
   CommSessionDrewHeartbeatSupport = 1 << 29,
   CommSessionDrewFindPhoneSupport = 1 << 30,
