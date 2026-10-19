@@ -79,6 +79,10 @@ typedef struct PBL_PACKED {
       bool unknown_attributes_support : 1;
       /** Notification window reports the notification it displays. */
       bool notification_window_state_support : 1;
+      /** Reserved. */
+      bool padding_27 : 1;
+      /** DrewPebbleOS: Settings > Updates protocol (drew_updates.h). */
+      bool drew_updates_support : 1;
     };
     /** All flags as a bitset. */
     uint64_t flags;
