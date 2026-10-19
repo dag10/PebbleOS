@@ -128,6 +128,8 @@ typedef enum {
   PEBBLE_BACKLIGHT_EVENT,
   //! Emitted when the system language changes; i18n_get() already returns the new strings
   PEBBLE_LANGUAGE_CHANGE_EVENT,
+  //! DrewPebbleOS: the updates list, check state or an install status changed (drew_updates.h)
+  PEBBLE_DREW_UPDATES_EVENT,
 
   PEBBLE_NUM_EVENTS
 } PebbleEventType;
