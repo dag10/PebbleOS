@@ -24,6 +24,9 @@ typedef enum {
   SettingsMenuItemThemes,
 #endif
   SettingsMenuItemActivity,
+#ifdef CONFIG_SERVICE_DREW_UPDATES
+  SettingsMenuItemUpdates,
+#endif
   SettingsMenuItemSystem,
   SettingsMenuItem_Count,
   SettingsMenuItem_Invalid
