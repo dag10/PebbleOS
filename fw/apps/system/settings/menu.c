@@ -12,6 +12,9 @@
 #include "system.h"
 #include "time.h"
 #include "timeline.h"
+#ifdef CONFIG_SERVICE_DREW_UPDATES
+#include "updates.h"
+#endif
 #ifdef CONFIG_THEMING
 #include "themes.h"
 #endif
@@ -34,6 +37,9 @@ static const SettingsModuleGetMetadata s_submodule_registry[] = {
   [SettingsMenuItemDisplay] = settings_display_get_info,
 #ifdef CONFIG_THEMING
   [SettingsMenuItemThemes] = settings_themes_get_info,
+#endif
+#ifdef CONFIG_SERVICE_DREW_UPDATES
+  [SettingsMenuItemUpdates] = settings_updates_get_info,
 #endif
   [SettingsMenuItemSystem] = settings_system_get_info,
 };
