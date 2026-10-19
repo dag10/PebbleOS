@@ -118,6 +118,11 @@ pbl_clar_test(test_ping
     pebble/services/ping/service.c
 )
 
+pbl_clar_test(test_drew_updates
+  SOURCES
+    pebble/services/drew_updates/service.c
+)
+
 pbl_clar_test(test_imaging
   SOURCES
     tests/fakes/fake_session.c
