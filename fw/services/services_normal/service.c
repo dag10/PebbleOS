@@ -11,6 +11,7 @@
 #include <pbl/services/blob_db/api.h>
 #include <pbl/services/blob_db/endpoint_private.h>
 #include <pbl/services/data_logging/data_logging_service.h>
+#include <pbl/services/drew_updates.h>
 #include <pbl/services/filesystem/pfs.h>
 #include <pbl/services/music_internal.h>
 #include <pbl/services/notifications/alerts_private.h>
@@ -124,6 +125,10 @@ void services_normal_init(void) {
 #endif
 
   app_glance_service_init();
+
+#ifdef CONFIG_SERVICE_DREW_UPDATES
+  drew_updates_init();
+#endif
 }
 
 static struct ServiceRunLevelSetting s_runlevel_settings[] = {
