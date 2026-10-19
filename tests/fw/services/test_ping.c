@@ -2,6 +2,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <pbl/services/comm_session/session.h>
+#include <pbl/services/regular_timer.h>
 
 #include <applib/ui/dialogs/simple_dialog.h>
 #include <clar.h>
@@ -31,6 +32,13 @@ FAKE_VALUE_FUNC(bool, comm_session_send_data, CommSession *, uint16_t, const uin
 
 CommSession *comm_session_get_system_session(void) {
   return nullptr;
+}
+
+bool comm_session_has_capability(CommSession *session, CommSessionCapability capability) {
+  return false;
+}
+
+void regular_timer_add_multiminute_callback(RegularTimerInfo *cb, uint16_t minutes) {
 }
 
 bool battery_is_usb_connected(void) {
