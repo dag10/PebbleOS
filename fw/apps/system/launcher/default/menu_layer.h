@@ -38,6 +38,7 @@ typedef struct LauncherMenuLayer {
 
 typedef struct LauncherMenuLayerSelectionState {
   int16_t scroll_offset_y;
+  //! Counts the recommended apps first, then every app
   uint16_t row_index;
   //! Content size the scroll offset was captured with
   PreferredContentSize content_size;
@@ -48,6 +49,11 @@ const LauncherMenuLayerStyle *launcher_menu_layer_get_style(void);
 
 void launcher_menu_layer_init(LauncherMenuLayer *launcher_menu_layer,
                               AppMenuDataSource *data_source);
+
+//! @return The app at @p row, which counts the data source's recommended apps first (listed above a
+//! divider), then every app
+AppMenuNode *launcher_menu_layer_get_node_at_row(LauncherMenuLayer *launcher_menu_layer,
+                                                 uint16_t row);
 
 Layer *launcher_menu_layer_get_layer(LauncherMenuLayer *launcher_menu_layer);
 
