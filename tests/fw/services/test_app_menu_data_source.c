@@ -757,3 +757,160 @@ void test_app_menu_data_source__set_sort_mode_resorts_loaded_list(void) {
   prv_assert_order(s_app_default_order, ARRAY_LENGTH(s_app_default_order));
   app_menu_data_source_deinit(&data_source);
 }
+
+// Recommended apps
+////////////////////////////////////
+
+static Uuid prv_uuid_of(AppInstallId install_id) {
+  Uuid uuid;
+  cl_assert(app_install_get_uuid_for_install_id(install_id, &uuid));
+  return uuid;
+}
+
+static void prv_assert_recommended(const AppInstallId order[], uint16_t num_entries) {
+  cl_assert_equal_i(app_menu_data_source_get_recommended_count(&data_source), num_entries);
+  for (uint16_t i = 0; i < num_entries; i++) {
+    AppMenuNode *node = app_menu_data_source_get_recommended_node_at_index(&data_source, i);
+    cl_assert(node);
+    cl_assert_equal_i(node->install_id, order[i]);
+  }
+  cl_assert_equal_p(app_menu_data_source_get_recommended_node_at_index(&data_source, num_entries),
+                    NULL);
+}
+
+void test_app_menu_data_source__no_recommended_by_default(void) {
+  prv_init_apps_data_source(AppMenuSortMode_Default);
+  cl_assert_equal_i(app_menu_data_source_get_recommended_count(&data_source), 0);
+  cl_assert_equal_p(app_menu_data_source_get_recommended_node_at_index(&data_source, 0), NULL);
+  prv_assert_order(s_app_default_order, ARRAY_LENGTH(s_app_default_order));
+  app_menu_data_source_deinit(&data_source);
+}
+
+void test_app_menu_data_source__recommended_order_and_regular_list_unchanged(void) {
+  // Recommended in the given order, which isn't the list's order
+  const Uuid uuids[] = {
+    prv_uuid_of(MENU_LAYER_APP_ID), prv_uuid_of(APP_ID_ALARMS), prv_uuid_of(APP_ID_SETTINGS)
+  };
+  prv_init_apps_data_source(AppMenuSortMode_Default);
+  app_menu_data_source_set_recommended(&data_source, uuids, ARRAY_LENGTH(uuids));
+
+  static const AppInstallId recommended[] = {MENU_LAYER_APP_ID, APP_ID_ALARMS, APP_ID_SETTINGS};
+  prv_assert_recommended(recommended, ARRAY_LENGTH(recommended));
+  // The recommended apps stay in their place in the regular list
+  prv_assert_order(s_app_default_order, ARRAY_LENGTH(s_app_default_order));
+  app_menu_data_source_deinit(&data_source);
+}
+
+static bool prv_recommended_filter_callback(struct AppMenuDataSource *source,
+                                            AppInstallEntry *entry) {
+  // Like the launcher: apps the list hides too, but not watchfaces
+  return !app_install_entry_is_watchface(entry);
+}
+
+void test_app_menu_data_source__recommended_can_be_hidden_from_the_list(void) {
+  const Uuid uuids[] = {
+    prv_uuid_of(APP_ID_QUIET_TIME_TOGGLE), prv_uuid_of(BIG_TIME_APP_ID), prv_uuid_of(APP_ID_MUSIC)
+  };
+  app_menu_data_source_init(&data_source,
+                            &(AppMenuDataSourceCallbacks){
+                              .changed = prv_menu_layer_reload_data,
+                              .filter = app_filter_callback,
+                              .recommended_filter = prv_recommended_filter_callback,
+                            },
+                            &menu_layer);
+  app_menu_data_source_set_recommended(&data_source, uuids, ARRAY_LENGTH(uuids));
+  // The Quick Launch only app is recommended but stays out of the list; the watchface is skipped
+  static const AppInstallId recommended[] = {APP_ID_QUIET_TIME_TOGGLE, APP_ID_MUSIC};
+  prv_assert_recommended(recommended, ARRAY_LENGTH(recommended));
+  prv_assert_order(s_app_default_order, ARRAY_LENGTH(s_app_default_order));
+  app_menu_data_source_deinit(&data_source);
+}
+
+void test_app_menu_data_source__recommended_set_before_load(void) {
+  const Uuid uuids[] = {prv_uuid_of(BG_COUNTER_APP_ID)};
+  app_menu_data_source_init(&data_source,
+                            &(AppMenuDataSourceCallbacks){
+                              .changed = prv_menu_layer_reload_data,
+                              .filter = app_filter_callback,
+                            },
+                            &menu_layer);
+  app_menu_data_source_set_recommended(&data_source, uuids, ARRAY_LENGTH(uuids));
+  static const AppInstallId recommended[] = {BG_COUNTER_APP_ID};
+  prv_assert_recommended(recommended, ARRAY_LENGTH(recommended));
+  app_menu_data_source_deinit(&data_source);
+}
+
+void test_app_menu_data_source__recommended_skips_missing_filtered_and_repeats(void) {
+  const Uuid not_installed = {0xde, 0xad, 0xbe, 0xef, 0x00, 0x00, 0x00, 0x00,
+                              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01};
+  const Uuid uuids[] = {
+    not_installed,
+    prv_uuid_of(BIG_TIME_APP_ID), // A watchface, filtered out of the launcher
+    prv_uuid_of(APP_ID_MUSIC),
+    prv_uuid_of(APP_ID_MUSIC),
+  };
+  prv_init_apps_data_source(AppMenuSortMode_Default);
+  app_menu_data_source_set_recommended(&data_source, uuids, ARRAY_LENGTH(uuids));
+  static const AppInstallId recommended[] = {APP_ID_MUSIC};
+  prv_assert_recommended(recommended, ARRAY_LENGTH(recommended));
+  app_menu_data_source_deinit(&data_source);
+}
+
+void test_app_menu_data_source__recommended_clamped_to_max(void) {
+  const Uuid uuids[] = {
+    prv_uuid_of(APP_ID_WORKOUT),    prv_uuid_of(APP_ID_MUSIC),      prv_uuid_of(APP_ID_ALARMS),
+    prv_uuid_of(BG_COUNTER_APP_ID), prv_uuid_of(MENU_LAYER_APP_ID),
+  };
+  static_assert(ARRAY_LENGTH(uuids) > DREW_APP_RECOMMEND_MAX, "More than the max");
+  prv_init_apps_data_source(AppMenuSortMode_Default);
+  app_menu_data_source_set_recommended(&data_source, uuids, ARRAY_LENGTH(uuids));
+  static const AppInstallId recommended[] = {
+    APP_ID_WORKOUT, APP_ID_MUSIC, APP_ID_ALARMS, BG_COUNTER_APP_ID
+  };
+  prv_assert_recommended(recommended, ARRAY_LENGTH(recommended));
+
+  // Clearing
+  app_menu_data_source_set_recommended(&data_source, NULL, 0);
+  cl_assert_equal_i(app_menu_data_source_get_recommended_count(&data_source), 0);
+  app_menu_data_source_deinit(&data_source);
+}
+
+void test_app_menu_data_source__recommended_with_every_sort_mode(void) {
+  prv_record_usage_at(APP_ID_ALARMS, 1000);
+  prv_record_usage_at(BG_COUNTER_APP_ID, 2000);
+
+  const Uuid uuids[] = {prv_uuid_of(APP_ID_WORKOUT), prv_uuid_of(BG_COUNTER_APP_ID)};
+  static const AppInstallId recommended[] = {APP_ID_WORKOUT, BG_COUNTER_APP_ID};
+  for (AppMenuSortMode mode = 0; mode < AppMenuSortModeCount; mode++) {
+    prv_init_apps_data_source(mode);
+    app_menu_data_source_set_recommended(&data_source, uuids, ARRAY_LENGTH(uuids));
+    prv_assert_recommended(recommended, ARRAY_LENGTH(recommended));
+    // Re-sorting the loaded list keeps them
+    app_menu_data_source_set_sort_mode(&data_source, (mode + 1) % AppMenuSortModeCount);
+    prv_assert_recommended(recommended, ARRAY_LENGTH(recommended));
+    cl_assert_equal_i(app_menu_data_source_get_count(&data_source),
+                      ARRAY_LENGTH(s_app_default_order));
+    app_menu_data_source_deinit(&data_source);
+  }
+}
+
+void test_app_menu_data_source__recommended_follows_uninstall_and_install(void) {
+  const Uuid uuids[] = {prv_uuid_of(MENU_LAYER_APP_ID), prv_uuid_of(APP_ID_MUSIC)};
+  prv_init_apps_data_source(AppMenuSortMode_Default);
+  app_menu_data_source_set_recommended(&data_source, uuids, ARRAY_LENGTH(uuids));
+  static const AppInstallId both[] = {MENU_LAYER_APP_ID, APP_ID_MUSIC};
+  prv_assert_recommended(both, ARRAY_LENGTH(both));
+
+  // Uninstalled while the list is loaded: no dangling node
+  app_db_delete((uint8_t *)&menu_layer_app.uuid, sizeof(Uuid));
+  static const AppInstallId music_only[] = {APP_ID_MUSIC};
+  prv_assert_recommended(music_only, ARRAY_LENGTH(music_only));
+
+  // Installed again: back in its recommended place
+  app_db_insert((uint8_t *)&menu_layer_app.uuid, sizeof(Uuid), (uint8_t *)&menu_layer_app,
+                sizeof(AppDBEntry));
+  cl_assert_equal_i(app_menu_data_source_get_recommended_count(&data_source), 2);
+  AppMenuNode *first = app_menu_data_source_get_recommended_node_at_index(&data_source, 0);
+  cl_assert(uuid_equal(&first->uuid, &menu_layer_app.uuid));
+  app_menu_data_source_deinit(&data_source);
+}
