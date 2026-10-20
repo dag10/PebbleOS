@@ -131,6 +131,27 @@ uint16_t app_menu_data_source_get_count(AppMenuDataSource *source) {
   return ARRAY_LENGTH(s_fake_app_nodes);
 }
 
+//! How many of s_recommended_apps the watchface recommends
+static uint16_t s_num_recommended;
+static const LauncherMenuLayerTestApp s_recommended_apps[] = {
+  LauncherMenuLayerTestApp_Travel,
+  LauncherMenuLayerTestApp_InteriorApp,
+};
+
+uint16_t app_menu_data_source_get_recommended_count(AppMenuDataSource *source) {
+  cl_assert(source);
+  return s_num_recommended;
+}
+
+AppMenuNode *app_menu_data_source_get_recommended_node_at_index(AppMenuDataSource *source,
+                                                                uint16_t index) {
+  cl_assert(source);
+  if (index >= s_num_recommended) {
+    return nullptr;
+  }
+  return app_menu_data_source_get_node_at_index(source, s_recommended_apps[index]);
+}
+
 static GBitmap s_default_app_icon_bitmap;
 void app_menu_data_source_enable_icons(AppMenuDataSource *source, uint32_t fallback_icon_id) {
   cl_assert(source);
@@ -310,6 +331,7 @@ void test_launcher_menu_layer__initialize(void) {
   s_content_size = PreferredContentSizeDefault;
   s_show_settings_app = false;
   s_battery_state = (BatteryChargeState){.charge_percent = 60};
+  s_num_recommended = 0;
 }
 
 void app_glance_db_deinit(void);
@@ -564,4 +586,69 @@ void test_launcher_menu_layer__cell_heights_at_least_minimum(void) {
     cl_assert(style->unfocused_cell_height >= LAUNCHER_MENU_LAYER_MIN_UNFOCUSED_CELL_HEIGHT);
 #endif
   }
+}
+
+// Recommended apps
+//////////////////////
+
+void test_launcher_menu_layer__recommended_above_divider(void) {
+  s_num_recommended = ARRAY_LENGTH(s_recommended_apps);
+  prv_render_launcher_menu_layer(0);
+  cl_check(gbitmap_pbi_eq(&s_ctx.dest_bitmap, TEST_PBI_FILE));
+}
+
+void test_launcher_menu_layer__recommended_divider_below_selection(void) {
+  // The first app below the divider selected
+  s_num_recommended = ARRAY_LENGTH(s_recommended_apps);
+  prv_render_launcher_menu_layer(ARRAY_LENGTH(s_recommended_apps));
+  cl_check(gbitmap_pbi_eq(&s_ctx.dest_bitmap, TEST_PBI_FILE));
+}
+
+void test_launcher_menu_layer__recommended_rows(void) {
+  s_num_recommended = ARRAY_LENGTH(s_recommended_apps);
+  AppMenuDataSource data_source = {};
+  app_menu_data_source_init(&data_source, nullptr, nullptr);
+  app_menu_data_source_enable_icons(&data_source, RESOURCE_ID_MENU_LAYER_GENERIC_WATCHAPP_ICON);
+  LauncherMenuLayer launcher_menu_layer = {};
+  launcher_menu_layer_init(&launcher_menu_layer, &data_source);
+
+  // Opening selects the first recommended app
+  cl_assert_equal_i(menu_layer_get_selected_index(&launcher_menu_layer.menu_layer).section, 0);
+  cl_assert_equal_i(menu_layer_get_selected_index(&launcher_menu_layer.menu_layer).row, 0);
+
+  // Rows count the recommended apps first, then every app
+  cl_assert_equal_s(launcher_menu_layer_get_node_at_row(&launcher_menu_layer, 0)->name, "Travel");
+  cl_assert_equal_s(launcher_menu_layer_get_node_at_row(&launcher_menu_layer, 1)->name,
+                    "Interior App");
+  cl_assert_equal_s(launcher_menu_layer_get_node_at_row(&launcher_menu_layer, 2)->name,
+                    "Watchfaces");
+  cl_assert_equal_s(launcher_menu_layer_get_node_at_row(&launcher_menu_layer, 5)->name, "Travel");
+
+  // Selection state round trips through the second section
+  const uint16_t row = 5;
+  prv_launcher_menu_layer_set_selection_index(&launcher_menu_layer, row, MenuRowAlignCenter,
+                                              false /* animated */);
+  const MenuIndex selected = menu_layer_get_selected_index(&launcher_menu_layer.menu_layer);
+  cl_assert_equal_i(selected.section, 1);
+  cl_assert_equal_i(selected.row, row - ARRAY_LENGTH(s_recommended_apps));
+  LauncherMenuLayerSelectionState state;
+  launcher_menu_layer_get_selection_state(&launcher_menu_layer, &state);
+  cl_assert_equal_i(state.row_index, row);
+
+  launcher_menu_layer_deinit(&launcher_menu_layer);
+  app_menu_data_source_deinit(&data_source);
+}
+
+void test_launcher_menu_layer__no_recommended_is_one_section(void) {
+  AppMenuDataSource data_source = {};
+  app_menu_data_source_init(&data_source, nullptr, nullptr);
+  LauncherMenuLayer launcher_menu_layer = {};
+  launcher_menu_layer_init(&launcher_menu_layer, &data_source);
+  MenuLayer *menu_layer = &launcher_menu_layer.menu_layer;
+  cl_assert_equal_i(
+      menu_layer->callbacks.get_num_sections(menu_layer, menu_layer->callback_context), 1);
+  cl_assert_equal_s(launcher_menu_layer_get_node_at_row(&launcher_menu_layer, 0)->name,
+                    "Watchfaces");
+  launcher_menu_layer_deinit(&launcher_menu_layer);
+  app_menu_data_source_deinit(&data_source);
 }
