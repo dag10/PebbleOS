@@ -52,14 +52,19 @@ static void prv_did_focus(bool in_focus) {
   }
 }
 
+static void prv_set_click_config(LauncherAppWindowData *data);
+
 static void prv_will_focus(bool in_focus) {
   LauncherAppWindowData *data = app_state_get_user_data();
   if (!in_focus) {
     launcher_menu_layer_set_selection_animations_enabled(&data->launcher_menu_layer, false);
+  } else {
+    // Selecting an app turns clicks off until the app replaces the launcher. A launch the user
+    // cancels from a modal (the DrewPebbleOS PIN prompt) leaves the launcher here, so turn them
+    // back on.
+    prv_set_click_config(data);
   }
 }
-
-static void prv_set_click_config(LauncherAppWindowData *data);
 
 static void prv_pref_change_handler([[maybe_unused]] PebbleEvent *event, void *context) {
   LauncherAppWindowData *data = context;
