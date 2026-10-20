@@ -20,6 +20,7 @@
 #include <pbl/services/clock.h>
 #include <pbl/services/compositor/compositor.h>
 #include <pbl/services/debounced_connection_service.h>
+#include <pbl/services/drew_pin_lock.h>
 #include <pbl/services/ecompass.h>
 #include <pbl/services/event_service.h>
 #include <pbl/services/evented_timer.h>
@@ -408,6 +409,13 @@ static PBL_NOINLINE void prv_minimal_event_handler(PebbleEvent *e) {
 
     case PEBBLE_APP_LAUNCH_EVENT:
       if (!app_install_is_app_running(e->launch_app.id)) {
+#ifdef CONFIG_SERVICE_DREW_PIN_LOCK
+        if (drew_pin_lock_handle_launch(e->launch_app.id, e->launch_app.data)) {
+          // The PIN prompt owns the data now, and launches the app itself.
+          e->launch_app.data = nullptr;
+          return;
+        }
+#endif
         const LaunchConfigCommon common =
             NULL_SAFE_FIELD_ACCESS(e->launch_app.data, common, (LaunchConfigCommon){});
         process_manager_launch_process(&(ProcessLaunchConfig){
