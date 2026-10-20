@@ -16,6 +16,10 @@ void watchface_set_default_install_id(AppInstallId id);
 
 AppInstallId watchface_get_default_install_id(void);
 
+//! The stored default watchface UUID, without resolving or validating it (no app database
+//! lookup, so it is safe on a syscall stack).
+void watchface_get_default_uuid(Uuid *uuid_out);
+
 void watchface_launch_default(const CompositorTransition *animation);
 
 void watchface_start_low_power(void);
