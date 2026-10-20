@@ -43,6 +43,7 @@
 #include <stubs_analytics.h>
 #include <stubs_app_install_manager.h>
 #include <stubs_app_manager.h>
+#include <stubs_drew_app_recommend.h>
 #include <stubs_battery.h>
 #include <stubs_event_loop.h>
 #include <stubs_health_db.h>

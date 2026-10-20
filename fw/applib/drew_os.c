@@ -48,6 +48,16 @@ _Static_assert(sizeof(DrewOSWorkout) == sizeof(WorkoutCurrentInfo),
 #define DREW_OS_WORKOUT_CAPS 0
 #endif
 
+#ifdef CONFIG_SERVICE_PROCESS_MANAGEMENT
+#include <pbl/services/process_management/drew_app_recommend.h>
+
+_Static_assert(DREW_OS_APP_RECOMMEND_MAX == DREW_APP_RECOMMEND_MAX,
+               "DREW_OS_APP_RECOMMEND_MAX is DREW_APP_RECOMMEND_MAX");
+#define DREW_OS_APP_RECOMMEND_CAPS DREW_OS_CAP_APP_RECOMMEND
+#else
+#define DREW_OS_APP_RECOMMEND_CAPS 0
+#endif
+
 #ifdef CONFIG_TOUCH
 #define DREW_OS_TOUCH_CAPS DREW_OS_CAP_WATCHFACE_TOUCH
 #else
@@ -60,7 +70,8 @@ static const DrewOSInfo s_drew_os_info = {
   .size = sizeof(DrewOSInfo),
   .capabilities = DREW_OS_CAP_APP_WAKEUP | DREW_OS_CAP_APP_GLANCE | DREW_OS_CAP_WATCHFACE_BUTTONS |
                   DREW_OS_HR_CAPS | DREW_OS_MUSIC_CAPS | DREW_OS_CAP_WATCHFACE_HOLDS |
-                  DREW_OS_CALENDAR_CAPS | DREW_OS_TOUCH_CAPS | DREW_OS_WORKOUT_CAPS,
+                  DREW_OS_CALENDAR_CAPS | DREW_OS_TOUCH_CAPS | DREW_OS_WORKOUT_CAPS |
+                  DREW_OS_APP_RECOMMEND_CAPS,
   .fw_version = TINTIN_METADATA.version_tag,
   .app_next_wakeup = sys_wakeup_get_next_for_app,
   .app_glance_subtitle = sys_app_glance_get_current_subtitle,
@@ -78,6 +89,9 @@ static const DrewOSInfo s_drew_os_info = {
 #endif
 #ifdef CONFIG_SERVICE_ACTIVITY
   .workout_current = (bool (*)(DrewOSWorkout *))sys_workout_service_get_current,
+#endif
+#ifdef CONFIG_SERVICE_PROCESS_MANAGEMENT
+  .app_recommend = sys_app_recommend_set,
 #endif
 };
 
