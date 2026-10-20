@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Drew Gottlieb
+# SPDX-License-Identifier: Apache-2.0
+
+config SERVICE_DREW_PIN_LOCK
+    bool "DrewPebbleOS PIN lock"
+    help
+      DrewPebbleOS: a watch PIN entered on a keypad (touch or buttons), and
+      apps that ask for it every time they launch, set up in Settings > PIN Lock.
+
+if SERVICE_DREW_PIN_LOCK
+
+module = SERVICE_DREW_PIN_LOCK
+module-str = Drew PIN lock
+source "subsys/logging/Kconfig.template.log_level"
+
+endif
