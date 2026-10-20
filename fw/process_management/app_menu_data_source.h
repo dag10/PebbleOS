@@ -12,6 +12,7 @@
 #include <pbl/kernel/compiler.h>
 #include <pbl/services/process_management/app_order_storage.h>
 #include <pbl/services/process_management/app_usage_storage.h>
+#include <pbl/services/process_management/drew_app_recommend.h>
 #include <pbl/util/list.h>
 
 #include <applib/ui/kino/kino_reel.h>
@@ -79,6 +80,8 @@ typedef uint16_t (*AppMenuDataSourceIndexTransform)(struct AppMenuDataSource *so
 
 typedef struct AppMenuDataSourceCallbacks {
   AppMenuFilterCallback filter;
+  //! Which apps can be recommended (see app_menu_data_source_set_recommended()); `filter` if NULL
+  AppMenuFilterCallback recommended_filter;
   AppMenuDataSourceFunc changed;
   AppMenuDataSourceIndexTransform transform_index;
 } AppMenuDataSourceCallbacks;
@@ -94,6 +97,12 @@ typedef struct AppMenuDataSource {
   GBitmap *default_icon;
   bool show_icons;
   bool is_list_loaded;
+  //! Recommended apps as set, which may include apps that aren't installed
+  uint8_t num_recommended_uuids;
+  Uuid recommended_uuids[DREW_APP_RECOMMEND_MAX];
+  //! Nodes of the installed recommended apps, in the recommended order. Not in the list.
+  uint8_t num_recommended;
+  AppMenuNode *recommended[DREW_APP_RECOMMEND_MAX];
 } AppMenuDataSource;
 
 //! Initialize the AppMenuDataSource
@@ -105,6 +114,21 @@ void app_menu_data_source_deinit(AppMenuDataSource *source);
 
 //! Sets the order of the apps, re-sorting a list that is already loaded.
 void app_menu_data_source_set_sort_mode(AppMenuDataSource *source, AppMenuSortMode sort_mode);
+
+//! Sets the recommended apps, which a client can list apart from (and in addition to) the regular
+//! list. Apps that aren't installed, that the `recommended_filter` callback (or `filter` without
+//! one) rejects, and repeats are skipped. Recommended apps can be ones the regular list hides.
+//! @param uuids The apps, in order; at most DREW_APP_RECOMMEND_MAX are used
+void app_menu_data_source_set_recommended(AppMenuDataSource *source, const Uuid *uuids,
+                                          uint8_t count);
+
+//! Returns how many recommended apps there are, after skipping.
+uint16_t app_menu_data_source_get_recommended_count(AppMenuDataSource *source);
+
+//! Returns the node of the recommended app at the given index, or NULL past the end. It is a node
+//! of its own, apart from the regular list's.
+AppMenuNode *app_menu_data_source_get_recommended_node_at_index(AppMenuDataSource *source,
+                                                                uint16_t index);
 
 //! Will load the icons for each `AppMenuNode`. Will automatically be unloaded when
 //! `app_menu_data_source_deinit` is called.
