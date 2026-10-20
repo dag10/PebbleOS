@@ -43,3 +43,16 @@ PBL_WEAK void app_menu_data_source_set_default_icon(AppMenuDataSource *source, u
 PBL_WEAK GBitmap *app_menu_data_source_get_node_icon(AppMenuDataSource *source, AppMenuNode *node) {
   return nullptr;
 }
+
+PBL_WEAK void app_menu_data_source_set_recommended(AppMenuDataSource *source, const Uuid *uuids,
+                                                   uint8_t count) {
+}
+
+PBL_WEAK uint16_t app_menu_data_source_get_recommended_count(AppMenuDataSource *source) {
+  return 0;
+}
+
+PBL_WEAK AppMenuNode *app_menu_data_source_get_recommended_node_at_index(AppMenuDataSource *source,
+                                                                         uint16_t index) {
+  return nullptr;
+}
