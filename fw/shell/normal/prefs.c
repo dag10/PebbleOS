@@ -8,6 +8,7 @@
 #include <pbl/services/accel_manager.h>
 #include <pbl/services/hrm/hrm_manager.h>
 #include <pbl/services/i18n/i18n.h>
+#include <pbl/services/process_management/drew_app_recommend.h>
 #include <pbl/services/touch/touch.h>
 #include <pbl/services/touch/touch_nav_service.h>
 #include <pbl/util/units.h>
@@ -808,6 +809,8 @@ static bool prv_set_s_quick_launch_setup_opened(uint8_t *version) {
 
 static bool prv_set_s_default_watchface(Uuid *uuid) {
   s_default_watchface = *uuid;
+  // A different watchface's app recommendations no longer apply
+  drew_app_recommend_handle_default_watchface(uuid);
   return true;
 }
 
@@ -2123,6 +2126,10 @@ static bool prv_set_default_any_watchface_enumerate_callback(AppInstallEntry *en
 
   watchface_set_default_install_id(entry->install_id);
   return false;
+}
+
+void watchface_get_default_uuid(Uuid *uuid_out) {
+  *uuid_out = s_default_watchface;
 }
 
 AppInstallId watchface_get_default_install_id(void) {

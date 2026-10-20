@@ -393,6 +393,11 @@ pbl_clar_test(test_app_menu_data_source
   OVERRIDES dummy_board fake_app_registry
 )
 
+pbl_clar_test(test_drew_app_recommend
+  SOURCES
+    fw/services/process_management/drew_app_recommend.c
+)
+
 pbl_clar_test(test_process_loader_storage
   SOURCES
     lib/util/build_id.c
