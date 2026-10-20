@@ -20,7 +20,7 @@
 
 #define DREW_OS_PROBE_CATEGORY 0x44524557 /* 'DREW' */
 #define DREW_OS_MAGIC          "DrewPebbleOS"
-#define DREW_OS_API_VERSION    10
+#define DREW_OS_API_VERSION    11
 
 //! Bits for DrewOSInfo.capabilities
 typedef enum {
@@ -47,7 +47,12 @@ typedef enum {
   DREW_OS_CAP_WATCHFACE_TOUCH = (1 << 7),
   //! workout_current is available (api_version >= 10)
   DREW_OS_CAP_WORKOUT = (1 << 8),
+  //! app_recommend is available, and the launcher lists the recommended apps (api_version >= 11)
+  DREW_OS_CAP_APP_RECOMMEND = (1 << 9),
 } DrewOSCapability;
+
+//! Most apps app_recommend takes (api_version >= 11)
+#define DREW_OS_APP_RECOMMEND_MAX 4
 
 //! Latest heart rate sample, as returned by DrewOSInfo.hr_latest. Same layout as the firmware's
 //! HRMLatestBPM.
@@ -191,9 +196,19 @@ typedef struct DrewOSInfo {
   //! paused or not. Returns false, with @p out zeroed, without one. Points at the
   //! sys_workout_service_get_current syscall; @p out must be in app memory.
   bool (*workout_current)(DrewOSWorkout *out);
+
+  // api_version >= 11, NULL without DREW_OS_CAP_APP_RECOMMEND
+
+  //! The default watchface sets the apps it recommends, which the launcher lists in this order
+  //! above a divider (they stay in the regular list too). @p count 0 clears them; more than
+  //! DREW_OS_APP_RECOMMEND_MAX are cut. The list replaces the previous one and outlives the
+  //! watchface's process until it sets another or a different watchface becomes the default.
+  //! Returns false, changing nothing, unless the caller is the current default watchface. Points
+  //! at the sys_app_recommend_set syscall; @p uuids must be in app memory.
+  bool (*app_recommend)(const Uuid *uuids, uint8_t count);
 } DrewOSInfo;
 
-_Static_assert(sizeof(DrewOSInfo) == 64, "DrewOSInfo is ABI");
+_Static_assert(sizeof(DrewOSInfo) == 68, "DrewOSInfo is ABI");
 _Static_assert(sizeof(DrewOSWorkout) == 8, "DrewOSWorkout is ABI");
 _Static_assert(sizeof(DrewOSCalendarEvent) == 104, "DrewOSCalendarEvent is ABI");
 _Static_assert(sizeof(DrewOSNowPlaying) == 196, "DrewOSNowPlaying is ABI");
