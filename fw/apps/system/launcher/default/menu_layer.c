@@ -20,6 +20,12 @@
 #define LAUNCHER_MENU_LAYER_CONTENT_INDICATOR_LAYER_HEIGHT (32)
 #define LAUNCHER_MENU_LAYER_GENERIC_APP_ICON (RESOURCE_ID_MENU_LAYER_GENERIC_WATCHAPP_ICON)
 
+// The divider between the recommended apps and the rest
+#define LAUNCHER_MENU_LAYER_DIVIDER_HEIGHT    (9)
+#define LAUNCHER_MENU_LAYER_DIVIDER_THICKNESS PBL_IF_COLOR_ELSE(2, 1)
+#define LAUNCHER_MENU_LAYER_DIVIDER_INSET     PBL_IF_RECT_ELSE(8, 36)
+#define LAUNCHER_MENU_LAYER_DIVIDER_COLOR     PBL_IF_COLOR_ELSE(GColorLightGray, GColorBlack)
+
 ////////////////////////
 // Styles
 
@@ -83,6 +89,45 @@ static int prv_num_unfocused_rows_per_side(const LauncherMenuLayerStyle *style) 
 #endif
 
 ////////////////////////////
+// Rows and sections
+
+// With recommended apps, the menu has two sections: the recommended apps, then every app below a
+// divider (the section header). Without, it has the one section of every app. Rows outside this
+// file count through both sections: the recommended apps first, then every app.
+
+static uint16_t prv_num_recommended(LauncherMenuLayer *launcher_menu_layer) {
+  AppMenuDataSource *data_source = launcher_menu_layer->data_source;
+  return data_source ? app_menu_data_source_get_recommended_count(data_source) : (uint16_t)0;
+}
+
+static bool prv_is_recommended_section(LauncherMenuLayer *launcher_menu_layer, uint16_t section) {
+  return (section == 0) && (prv_num_recommended(launcher_menu_layer) > 0);
+}
+
+static AppMenuNode *prv_get_node(LauncherMenuLayer *launcher_menu_layer, MenuIndex index) {
+  AppMenuDataSource *data_source = launcher_menu_layer->data_source;
+  if (!data_source) {
+    return nullptr;
+  }
+  if (prv_is_recommended_section(launcher_menu_layer, index.section)) {
+    return app_menu_data_source_get_recommended_node_at_index(data_source, index.row);
+  }
+  return app_menu_data_source_get_node_at_index(data_source, index.row);
+}
+
+static MenuIndex prv_menu_index_for_row(LauncherMenuLayer *launcher_menu_layer, uint16_t row) {
+  const uint16_t num_recommended = prv_num_recommended(launcher_menu_layer);
+  if (num_recommended == 0) {
+    return MenuIndex(0, row);
+  }
+  return (row < num_recommended) ? MenuIndex(0, row) : MenuIndex(1, row - num_recommended);
+}
+
+static uint16_t prv_row_for_menu_index(LauncherMenuLayer *launcher_menu_layer, MenuIndex index) {
+  return (index.section > 0) ? (prv_num_recommended(launcher_menu_layer) + index.row) : index.row;
+}
+
+////////////////////////////
 // Misc. callbacks/helpers
 
 static void prv_launch_app_cb(void *data) {
@@ -131,7 +176,7 @@ static void prv_menu_layer_select([[maybe_unused]] MenuLayer *menu_layer, MenuIn
   // rendering the last frame of the menu layer; we need to do this because some clients (like the
   // normal firmware app launcher) rely on the display reflecting the final state of the launcher
   // when we launch an app (e.g. for compositor transition animations)
-  AppMenuNode *node = app_menu_data_source_get_node_at_index(data_source, cell_index->row);
+  AppMenuNode *node = prv_get_node(launcher_menu_layer, *cell_index);
   PBL_ASSERTN(node);
   launcher_menu_layer->app_to_launch_after_next_render = node->install_id;
 
@@ -141,12 +186,40 @@ static void prv_menu_layer_select([[maybe_unused]] MenuLayer *menu_layer, MenuIn
   prv_launcher_menu_layer_mark_dirty(launcher_menu_layer);
 }
 
+static uint16_t prv_menu_layer_get_num_sections([[maybe_unused]] MenuLayer *menu_layer,
+                                                void *context) {
+  LauncherMenuLayer *launcher_menu_layer = context;
+  return (prv_num_recommended(launcher_menu_layer) > 0) ? 2 : 1;
+}
+
 static uint16_t prv_menu_layer_get_num_rows([[maybe_unused]] MenuLayer *menu_layer,
-                                            [[maybe_unused]] uint16_t section_index,
-                                            void *context) {
+                                            uint16_t section_index, void *context) {
   LauncherMenuLayer *launcher_menu_layer = context;
   AppMenuDataSource *data_source = launcher_menu_layer->data_source;
-  return data_source ? app_menu_data_source_get_count(data_source) : (uint16_t)0;
+  if (!data_source) {
+    return 0;
+  }
+  if (prv_is_recommended_section(launcher_menu_layer, section_index)) {
+    return prv_num_recommended(launcher_menu_layer);
+  }
+  return app_menu_data_source_get_count(data_source);
+}
+
+static int16_t prv_menu_layer_get_header_height([[maybe_unused]] MenuLayer *menu_layer,
+                                                uint16_t section_index, void *context) {
+  // Only the section of every app below the recommended apps has a header: the divider
+  return (section_index > 0) ? LAUNCHER_MENU_LAYER_DIVIDER_HEIGHT : (int16_t)0;
+}
+
+static void prv_menu_layer_draw_header(GContext *ctx, const Layer *cell_layer,
+                                       [[maybe_unused]] uint16_t section_index,
+                                       [[maybe_unused]] void *context) {
+  const GRect *bounds = &cell_layer->bounds;
+  const int16_t thickness = LAUNCHER_MENU_LAYER_DIVIDER_THICKNESS;
+  const GRect divider = GRect(LAUNCHER_MENU_LAYER_DIVIDER_INSET, (bounds->size.h - thickness) / 2,
+                              bounds->size.w - (2 * LAUNCHER_MENU_LAYER_DIVIDER_INSET), thickness);
+  graphics_context_set_fill_color(ctx, LAUNCHER_MENU_LAYER_DIVIDER_COLOR);
+  graphics_fill_rect(ctx, &divider);
 }
 
 static void prv_menu_layer_draw_row(GContext *ctx, const Layer *cell_layer, MenuIndex *cell_index,
@@ -157,7 +230,7 @@ static void prv_menu_layer_draw_row(GContext *ctx, const Layer *cell_layer, Menu
     return;
   }
 
-  AppMenuNode *node = app_menu_data_source_get_node_at_index(data_source, cell_index->row);
+  AppMenuNode *node = prv_get_node(launcher_menu_layer, *cell_index);
 
   const GRect *cell_layer_bounds = &cell_layer->bounds;
   const bool is_highlighted = menu_cell_layer_is_highlighted(cell_layer);
@@ -202,14 +275,14 @@ static int16_t prv_menu_layer_get_cell_height([[maybe_unused]] MenuLayer *menu_l
 #endif
 }
 
-static void prv_play_glance_for_row(LauncherMenuLayer *launcher_menu_layer, uint16_t row) {
+static void prv_play_glance_for_menu_index(LauncherMenuLayer *launcher_menu_layer,
+                                           MenuIndex index) {
   if (!launcher_menu_layer || !launcher_menu_layer->selection_animations_enabled) {
     return;
   }
 
   // Get the app menu node for the glance that is about to be selected
-  AppMenuDataSource *data_source = launcher_menu_layer->data_source;
-  AppMenuNode *node = app_menu_data_source_get_node_at_index(data_source, row);
+  AppMenuNode *node = prv_get_node(launcher_menu_layer, index);
 
   // Instruct the launcher app glance service to play the glance for the node
   launcher_app_glance_service_play_glance_for_app_node(&launcher_menu_layer->glance_service, node);
@@ -220,7 +293,7 @@ static void prv_menu_layer_selection_will_change([[maybe_unused]] MenuLayer *men
                                                  [[maybe_unused]] MenuIndex old_index,
                                                  void *context) {
   LauncherMenuLayer *launcher_menu_layer = context;
-  prv_play_glance_for_row(launcher_menu_layer, new_index->row);
+  prv_play_glance_for_menu_index(launcher_menu_layer, *new_index);
 }
 
 PBL_T_STATIC void prv_launcher_menu_layer_set_selection_index(
@@ -229,10 +302,10 @@ PBL_T_STATIC void prv_launcher_menu_layer_set_selection_index(
     return;
   }
 
-  const MenuIndex new_selected_menu_index = MenuIndex(0, index);
+  const MenuIndex new_selected_menu_index = prv_menu_index_for_row(launcher_menu_layer, index);
   menu_layer_set_selected_index(&launcher_menu_layer->menu_layer, new_selected_menu_index,
                                 row_align, animated);
-  prv_play_glance_for_row(launcher_menu_layer, index);
+  prv_play_glance_for_menu_index(launcher_menu_layer, new_selected_menu_index);
 }
 
 ////////////////////////
@@ -273,7 +346,10 @@ void launcher_menu_layer_init(LauncherMenuLayer *launcher_menu_layer,
   menu_layer_pad_bottom_enable(menu_layer, false);
   menu_layer_set_callbacks(menu_layer, launcher_menu_layer,
                            &(MenuLayerCallbacks){
+                             .get_num_sections = prv_menu_layer_get_num_sections,
                              .get_num_rows = prv_menu_layer_get_num_rows,
+                             .get_header_height = prv_menu_layer_get_header_height,
+                             .draw_header = prv_menu_layer_draw_header,
                              .draw_row = prv_menu_layer_draw_row,
                              .select_click = prv_menu_layer_select,
                              .get_cell_height = prv_menu_layer_get_cell_height,
@@ -337,6 +413,14 @@ void launcher_menu_layer_init(LauncherMenuLayer *launcher_menu_layer,
   const bool animated = false;
   prv_launcher_menu_layer_set_selection_index(launcher_menu_layer, first_index, MenuRowAlignBottom,
                                               animated);
+}
+
+AppMenuNode *launcher_menu_layer_get_node_at_row(LauncherMenuLayer *launcher_menu_layer,
+                                                 uint16_t row) {
+  if (!launcher_menu_layer) {
+    return nullptr;
+  }
+  return prv_get_node(launcher_menu_layer, prv_menu_index_for_row(launcher_menu_layer, row));
 }
 
 Layer *launcher_menu_layer_get_layer(LauncherMenuLayer *launcher_menu_layer) {
@@ -440,7 +524,8 @@ void launcher_menu_layer_get_selection_state(const LauncherMenuLayer *launcher_m
   const ScrollLayer *scroll_layer = &menu_layer->scroll_layer;
 
   *state_out = (LauncherMenuLayerSelectionState){
-    .row_index = menu_layer_get_selected_index(menu_layer).row,
+    .row_index = prv_row_for_menu_index((LauncherMenuLayer *)launcher_menu_layer,
+                                        menu_layer_get_selected_index(menu_layer)),
     // This cast is required because this ScrollLayer function's argument isn't const
     .scroll_offset_y = scroll_layer_get_content_offset((ScrollLayer *)scroll_layer).y,
     .content_size = launcher_menu_layer->content_size,
@@ -456,7 +541,7 @@ void launcher_menu_layer_set_selection_animations_enabled(LauncherMenuLayer *lau
   if (enabled) {
     const MenuIndex selected_index =
         menu_layer_get_selected_index(&launcher_menu_layer->menu_layer);
-    prv_play_glance_for_row(launcher_menu_layer, selected_index.row);
+    prv_play_glance_for_menu_index(launcher_menu_layer, selected_index);
   } else {
     launcher_app_glance_service_rewind_current_glance(&launcher_menu_layer->glance_service);
   }
