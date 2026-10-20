@@ -5,6 +5,7 @@
 #include <pbl/services/activity/activity.h>
 #include <pbl/services/activity/activity_insights.h>
 #include <pbl/services/activity/insights_settings.h>
+#include <pbl/services/process_management/drew_app_recommend.h>
 #include <pbl/services/settings/settings_file.h>
 
 #include <applib/preferred_content_size.h>
@@ -140,8 +141,13 @@ void watchface_set_default_install_id(AppInstallId app_id) {
   app_install_get_uuid_for_install_id(app_id, &uuid);
   if (prv_pref_set(PREF_KEY_DEFAULT_WATCHFACE, &uuid, sizeof(uuid))) {
     s_default_watchface = uuid;
+    drew_app_recommend_handle_default_watchface(&uuid);
   }
   pbl_mutex_unlock(&s_mutex);
+}
+
+void watchface_get_default_uuid(Uuid *uuid_out) {
+  *uuid_out = s_default_watchface;
 }
 
 static bool prv_set_default_any_watchface_enumerate_callback(AppInstallEntry *entry, void *data) {

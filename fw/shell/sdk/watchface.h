@@ -13,6 +13,9 @@ void watchface_handle_button_event(PebbleEvent *e);
 
 AppInstallId watchface_get_default_install_id(void);
 
+//! The stored default watchface UUID, without resolving or validating it.
+void watchface_get_default_uuid(Uuid *uuid_out);
+
 void watchface_launch_default(const CompositorTransition *animation);
 
 void watchface_set_timeline_peek_enabled(bool visible);
