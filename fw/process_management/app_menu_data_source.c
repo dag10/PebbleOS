@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include <pbl/services/process_management/app_order_storage.h>
+#include <pbl/util/math.h>
 #include <pbl/util/size.h>
 #include <pbl/util/testing.h>
 
@@ -21,6 +22,7 @@ static bool remove_app_with_install_id(const AppInstallId install_id, AppMenuDat
 static AppMenuNode *prv_find_node_with_install_id(const AppInstallId install_id,
                                                   const AppMenuDataSource *const source);
 static void prv_unload_node(const AppMenuDataSource *source, AppMenuNode *node);
+static void prv_update_recommended(AppMenuDataSource *source);
 
 ////////////////////////////////
 // List helper functions
@@ -233,6 +235,9 @@ void prv_handle_app_event(void *data) {
   AppMenuDataSource *source = install_data->source;
   AppInstallId install_id = install_data->id;
 
+  // Before the handlers below alert the client: the change may add or remove a recommended app
+  prv_update_recommended(source);
+
   switch (install_data->event_type) {
     case APP_AVAILABLE:
       prv_do_app_added(source, install_id);
@@ -413,20 +418,21 @@ static void prv_load_list_if_needed(AppMenuDataSource *source) {
     app_free(source->usage);
     source->usage = NULL;
   }
+  prv_update_recommended(source);
 }
 
-static void prv_unload_node(const AppMenuDataSource *source, AppMenuNode *node) {
+static void prv_free_node(const AppMenuDataSource *source, AppMenuNode *node) {
   prv_unload_list_item_icon(source, node);
-  list_remove((ListNode *)node, (ListNode **)&source->list, nullptr);
   app_free(node->name);
   app_free(node);
 }
 
-static void add_app_with_install_id(const AppInstallEntry *entry, AppMenuDataSource *source) {
-  if (source->is_list_loaded == false) {
-    return;
-  }
+static void prv_unload_node(const AppMenuDataSource *source, AppMenuNode *node) {
+  list_remove((ListNode *)node, (ListNode **)&source->list, nullptr);
+  prv_free_node(source, node);
+}
 
+static AppMenuNode *prv_create_node(const AppInstallEntry *entry) {
   AppMenuNode *node = app_malloc_check(sizeof(AppMenuNode));
   *node = (AppMenuNode){
     .install_id = entry->install_id,
@@ -448,8 +454,52 @@ static void add_app_with_install_id(const AppInstallEntry *entry, AppMenuDataSou
   len = strlen(app_name) + 1;
   node->name = app_malloc_check(len);
   strncpy(node->name, app_name, len);
+  return node;
+}
 
-  prv_sorted_add(source, node);
+static void add_app_with_install_id(const AppInstallEntry *entry, AppMenuDataSource *source) {
+  if (source->is_list_loaded == false) {
+    return;
+  }
+
+  prv_sorted_add(source, prv_create_node(entry));
+}
+
+static void prv_free_recommended(AppMenuDataSource *source) {
+  for (uint8_t i = 0; i < source->num_recommended; i++) {
+    prv_free_node(source, source->recommended[i]);
+  }
+  source->num_recommended = 0;
+}
+
+static bool prv_is_recommendable(AppMenuDataSource *source, AppInstallEntry *entry) {
+  const AppMenuFilterCallback filter =
+      source->callbacks.recommended_filter ?: source->callbacks.filter;
+  return (!filter || filter(source, entry));
+}
+
+//! Looks the recommended apps up again: installs and uninstalls change which ones are shown
+static void prv_update_recommended(AppMenuDataSource *source) {
+  prv_free_recommended(source);
+  if (!source->is_list_loaded) {
+    return;
+  }
+  for (uint8_t i = 0; i < source->num_recommended_uuids; i++) {
+    AppInstallEntry entry;
+    const AppInstallId install_id = app_install_get_id_for_uuid(&source->recommended_uuids[i]);
+    if ((install_id == INSTALL_ID_INVALID) ||
+        !app_install_get_entry_for_install_id(install_id, &entry) ||
+        !prv_is_recommendable(source, &entry)) {
+      continue;
+    }
+    bool repeated = false;
+    for (uint8_t j = 0; j < source->num_recommended; j++) {
+      repeated |= (source->recommended[j]->install_id == install_id);
+    }
+    if (!repeated) {
+      source->recommended[source->num_recommended++] = prv_create_node(&entry);
+    }
+  }
 }
 
 static AppMenuNode *prv_find_node_with_install_id(const AppInstallId install_id,
@@ -511,6 +561,8 @@ void app_menu_data_source_init(AppMenuDataSource *source,
 
 void app_menu_data_source_deinit(AppMenuDataSource *source) {
   app_install_deregister_callback(&source->app_install_callback_node);
+  prv_free_recommended(source);
+  source->num_recommended_uuids = 0;
   // Free the AppMenuNodes:
   AppMenuNode *node = source->list;
   while (node != nullptr) {
@@ -558,6 +610,31 @@ void app_menu_data_source_set_sort_mode(AppMenuDataSource *source, AppMenuSortMo
   app_free(usage);
 
   prv_alert_data_source_changed(source);
+}
+
+void app_menu_data_source_set_recommended(AppMenuDataSource *source, const Uuid *uuids,
+                                          uint8_t count) {
+  source->num_recommended_uuids = MIN(count, DREW_APP_RECOMMEND_MAX);
+  if (uuids) {
+    memcpy(source->recommended_uuids, uuids, source->num_recommended_uuids * sizeof(Uuid));
+  } else {
+    source->num_recommended_uuids = 0;
+  }
+  if (source->is_list_loaded) {
+    prv_update_recommended(source);
+    prv_alert_data_source_changed(source);
+  }
+}
+
+uint16_t app_menu_data_source_get_recommended_count(AppMenuDataSource *source) {
+  prv_load_list_if_needed(source);
+  return source->num_recommended;
+}
+
+AppMenuNode *app_menu_data_source_get_recommended_node_at_index(AppMenuDataSource *source,
+                                                                uint16_t index) {
+  prv_load_list_if_needed(source);
+  return (index < source->num_recommended) ? source->recommended[index] : nullptr;
 }
 
 void app_menu_data_source_enable_icons(AppMenuDataSource *source, uint32_t fallback_icon_id) {
