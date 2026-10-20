@@ -7,6 +7,7 @@
 
 #include <pbl/kernel/compiler.h>
 #include <pbl/services/i18n/i18n.h>
+#include <pbl/services/process_management/drew_app_recommend.h>
 
 #include <applib/app.h>
 #include <applib/app_focus_service.h>
@@ -14,6 +15,7 @@
 #include <applib/ui/app_window_stack.h>
 #include <applib/ui/option_menu_window.h>
 #include <applib/ui/window_stack.h>
+#include <apps/system_app_ids.h>
 #include <kernel/event_loop.h>
 #include <kernel/events.h>
 #include <kernel/pbl_malloc.h>
@@ -37,6 +39,8 @@ typedef struct LauncherAppPersistedData {
   LauncherMenuLayerSelectionState selection_state;
   //! App that was selected, to tell whether the sort order moved it
   AppInstallId selected_app;
+  //! How many recommended apps were listed above the divider
+  uint16_t num_recommended;
   LauncherDrawState draw_state;
 } LauncherAppPersistedData;
 
@@ -80,6 +84,30 @@ static bool prv_app_filter_callback([[maybe_unused]] AppMenuDataSource *source,
                                     AppInstallEntry *entry) {
   // Skip watchfaces and hidden apps
   return (!app_install_entry_is_watchface(entry) && !app_install_entry_is_hidden((entry)));
+}
+
+static bool prv_recommended_filter_callback([[maybe_unused]] AppMenuDataSource *source,
+                                            AppInstallEntry *entry) {
+  // The watchface can recommend apps the list hides (e.g. Sports before it connects), but not
+  // watchfaces, Quick Launch only actions or internal processes
+  if (app_install_entry_is_watchface(entry)) {
+    return false;
+  }
+  switch (entry->visibility) {
+    case ProcessVisibilityShown:
+    case ProcessVisibilityShownOnCommunication:
+      return true;
+    case ProcessVisibilityHidden:
+#ifdef APP_ID_HEALTH_APP
+      // Hidden from the list with CAPABILITY_HAS_CORE_NAVIGATION4 (no current board sets it)
+      return (entry->install_id == APP_ID_HEALTH_APP);
+#else
+      return false;
+#endif
+    case ProcessVisibilityQuickLaunch:
+      break;
+  }
+  return false;
 }
 
 static void prv_data_changed(void *context) {
@@ -242,10 +270,15 @@ static void prv_window_load(Window *window) {
                             &(AppMenuDataSourceCallbacks){
                               .changed = prv_data_changed,
                               .filter = prv_app_filter_callback,
+                              .recommended_filter = prv_recommended_filter_callback,
                               .transform_index = prv_transform_index,
                             },
                             data);
   app_menu_data_source_set_sort_mode(data_source, prv_get_app_menu_sort_mode());
+  // The default watchface's recommended apps (DrewPebbleOS), listed above the rest
+  Uuid recommended[DREW_APP_RECOMMEND_MAX];
+  app_menu_data_source_set_recommended(data_source, recommended,
+                                       drew_app_recommend_get(recommended));
 
   LauncherMenuLayer *launcher_menu_layer = &data->launcher_menu_layer;
   launcher_menu_layer_init(launcher_menu_layer, data_source);
@@ -253,12 +286,16 @@ static void prv_window_load(Window *window) {
   layer_add_child(window_root_layer, launcher_menu_layer_get_layer(launcher_menu_layer));
 
   // If we have a saved launcher selection state, restore it. Other than the default order, a sort
-  // order can move apps (e.g. the app just used to the top); start from the top if it moved ours.
+  // order can move apps (e.g. the app just used to the top), and the recommended apps can change;
+  // start from the top if that moved ours.
   const LauncherAppPersistedData *persisted = &s_launcher_app_persisted_data;
+  const uint16_t num_recommended = app_menu_data_source_get_recommended_count(data_source);
+  const AppMenuNode *saved_row_node = launcher_menu_layer_get_node_at_row(
+      launcher_menu_layer, persisted->selection_state.row_index);
   const bool selected_app_moved =
-      (data_source->sort_mode != AppMenuSortMode_Default) &&
-      (app_menu_data_source_get_index_of_app_with_install_id(
-           data_source, persisted->selected_app) != persisted->selection_state.row_index);
+      (persisted->num_recommended != num_recommended) ||
+      (((data_source->sort_mode != AppMenuSortMode_Default) || (num_recommended > 0)) &&
+       (!saved_row_node || (saved_row_node->install_id != persisted->selected_app)));
   if (persisted->valid && !selected_app_moved) {
     launcher_menu_layer_set_selection_state(launcher_menu_layer, &persisted->selection_state);
   }
@@ -293,10 +330,12 @@ static void prv_window_unload(Window *window) {
   };
   launcher_menu_layer_get_selection_state(&data->launcher_menu_layer,
                                           &s_launcher_app_persisted_data.selection_state);
-  const AppMenuNode *selected_node = app_menu_data_source_get_node_at_index(
-      &data->app_menu_data_source, s_launcher_app_persisted_data.selection_state.row_index);
+  const AppMenuNode *selected_node = launcher_menu_layer_get_node_at_row(
+      &data->launcher_menu_layer, s_launcher_app_persisted_data.selection_state.row_index);
   s_launcher_app_persisted_data.selected_app =
       selected_node ? selected_node->install_id : INSTALL_ID_INVALID;
+  s_launcher_app_persisted_data.num_recommended =
+      app_menu_data_source_get_recommended_count(&data->app_menu_data_source);
 
   event_service_client_unsubscribe(&data->pref_change_event_info);
   app_focus_service_unsubscribe();
