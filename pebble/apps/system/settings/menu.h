@@ -22,6 +22,9 @@ typedef enum {
   SettingsMenuItemHealth,
   SettingsMenuItemThemes,
   SettingsMenuItemActivity,
+#ifdef CONFIG_SERVICE_DREW_PIN_LOCK
+  SettingsMenuItemPinLock,
+#endif
 #ifdef CONFIG_SERVICE_DREW_UPDATES
   SettingsMenuItemUpdates,
 #endif
