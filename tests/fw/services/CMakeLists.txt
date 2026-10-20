@@ -113,6 +113,13 @@ pbl_clar_test(test_drew_updates
     fw/services/drew_updates/service.c
 )
 
+pbl_clar_test(test_drew_pin_lock
+  SOURCES
+    fw/services/drew_pin_lock/service.c
+    tests/fakes/fake_rtc.c
+    tests/fakes/fake_settings.c
+)
+
 pbl_clar_test(test_imaging
   SOURCES
     tests/fakes/fake_session.c
