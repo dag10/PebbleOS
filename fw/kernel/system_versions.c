@@ -150,6 +150,9 @@ static void prv_send_watch_versions(CommSession *session) {
 #ifdef CONFIG_SERVICE_DREW_UPDATES
   versions_msg.capabilities.drew_updates_support = 1;
 #endif
+#if !defined(CONFIG_RECOVERY_FW)
+  versions_msg.capabilities.drew_notification_flags_support = 1;
+#endif
   bt_local_id_copy_address(&versions_msg.device_address);
 
   versions_msg.system_resources_version = resource_get_system_version();

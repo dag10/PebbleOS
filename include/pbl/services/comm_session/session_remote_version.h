@@ -83,6 +83,10 @@ typedef struct PBL_PACKED {
       bool padding_27 : 1;
       /** DrewPebbleOS: Settings > Updates protocol (drew_updates.h). */
       bool drew_updates_support : 1;
+      /** Reserved: DrewPebbleOS phone-only capabilities. */
+      uint8_t padding_29_30 : 2;
+      /** DrewPebbleOS: notification flags attribute (drew_notification.h). */
+      bool drew_notification_flags_support : 1;
     };
     /** All flags as a bitset. */
     uint64_t flags;
