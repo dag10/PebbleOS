@@ -55,3 +55,16 @@ pbl_clar_test(test_nexmo
     fw/services/timeline/attribute_group.c
     tests/fakes/fake_rtc.c
 )
+
+pbl_clar_test(test_drew_notification
+  SOURCES
+    fw/services/notifications/drew_notification.c
+    fw/kernel/rand.c
+    third_party/tinymt/TinyMT/tinymt/tinymt32.c
+    fw/services/timeline/item.c
+    fw/services/timeline/attributes_actions.c
+    fw/services/timeline/attribute_group.c
+    fw/services/timeline/attribute.c
+    fw/services/clock/time.c
+    tests/fakes/fake_rtc.c
+)
