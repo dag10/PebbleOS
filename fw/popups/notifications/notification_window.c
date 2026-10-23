@@ -27,6 +27,7 @@
 #include <pbl/services/notifications/alerts_private.h>
 #include <pbl/services/notifications/ancs/ancs_filtering.h>
 #include <pbl/services/notifications/do_not_disturb.h>
+#include <pbl/services/notifications/drew_notification.h>
 #include <pbl/services/notifications/notification_image.h>
 #include <pbl/services/notifications/notification_storage.h>
 #include <pbl/services/notifications/notification_types.h>
@@ -75,6 +76,10 @@ PBL_LOG_MODULE_DECLARE(service_alerts, CONFIG_SERVICE_ALERTS_LOG_LEVEL);
 // pop timer for window. Refreshed during any point of activity (button clicks)
 static const unsigned int QUICK_DND_HOLD_MS = 800;
 
+// Critical notifications vibe like an alarm, for at most as long as one
+#define CRITICAL_VIBE_FALLBACK_INTERVAL_MS (1000)
+#define CRITICAL_VIBE_DURATION_MS          (10 * PBL_SEC_PER_MIN * PBL_MSEC_PER_SEC)
+
 PBL_T_STATIC NotificationWindowData s_notification_window_data;
 
 PBL_T_STATIC bool s_in_use = false;
@@ -87,7 +92,11 @@ static void prv_handle_notification_removed_common(Uuid *, NotificationType);
 
 static bool prv_should_pop_due_to_inactivity(void);
 
-static void prv_do_notification_vibe(NotificationWindowData *data, Uuid *id);
+static void prv_do_notification_vibe(NotificationWindowData *data, Uuid *id, bool critical);
+
+static void prv_refresh_pop_timer(NotificationWindowData *data);
+
+static bool prv_end_critical_vibe(NotificationWindowData *data, const char *reason);
 
 /////////////////////
 // Helpers
@@ -118,6 +127,7 @@ static AlertType prv_alert_type_for_notification_type(NotificationType type) {
 }
 
 static void prv_toggle_dnd_from_back_click(ClickRecognizerRef recognizer, void *data) {
+  prv_end_critical_vibe(&s_notification_window_data, "acknowledged");
   do_not_disturb_manual_toggle_with_dialog();
 }
 
@@ -213,8 +223,9 @@ static int prv_reminders_on_top_comparator(void *a, void *b) {
   }
 }
 
-static void prv_notification_window_add_notification(Uuid *id, NotificationType type) {
-  if (do_not_disturb_is_active()) {
+static void prv_notification_window_add_notification(Uuid *id, NotificationType type,
+                                                     bool quiet_time) {
+  if (quiet_time) {
     notifications_presented_list_add_sorted(id, type, prv_reminders_on_top_comparator, false);
   } else {
     notifications_presented_list_add(id, type);
@@ -301,6 +312,97 @@ static Animation *prv_create_anim_frame(Layer *layer, int16_t dy, bool scroll) {
 }
 
 /////////////////////
+// Critical vibe
+/////////////////////
+
+static bool prv_is_critical_vibe_active(NotificationWindowData *data) {
+  return data->critical_vibe_timer != EVENTED_TIMER_INVALID_ID;
+}
+
+static void prv_play_critical_vibe(NotificationWindowData *data) {
+  vibes_cancel();
+  if (data->critical_vibe_score) {
+    vibe_score_do_vibe(data->critical_vibe_score);
+  } else {
+    vibes_long_pulse();
+  }
+}
+
+static bool prv_stop_critical_vibe(NotificationWindowData *data, const char *reason) {
+  if (!prv_is_critical_vibe_active(data)) {
+    return false;
+  }
+  PBL_LOG_DBG("Critical vibe: stop, %s, played=%u/%u", reason, data->critical_vibe_count,
+              data->critical_vibe_max);
+  prv_cleanup_timer(&data->critical_vibe_timer);
+  vibes_cancel();
+  if (data->critical_vibe_score) {
+    vibe_score_destroy(data->critical_vibe_score);
+    data->critical_vibe_score = nullptr;
+  }
+  return true;
+}
+
+//! Stop the critical vibe and let the popup time out again.
+static bool prv_end_critical_vibe(NotificationWindowData *data, const char *reason) {
+  if (!prv_stop_critical_vibe(data, reason)) {
+    return false;
+  }
+  prv_refresh_pop_timer(data);
+  return true;
+}
+
+static void prv_critical_vibe_timer_cb(void *context) {
+  NotificationWindowData *data = context;
+  if (data->critical_vibe_count >= data->critical_vibe_max) {
+    prv_end_critical_vibe(data, "timed out");
+    return;
+  }
+  data->critical_vibe_count++;
+  prv_play_critical_vibe(data);
+}
+
+static void prv_start_critical_vibe(NotificationWindowData *data, const Uuid *id) {
+  prv_stop_critical_vibe(data, "replaced");
+
+  data->critical_vibe_score = vibe_client_get_score(VibeClient_Alarms);
+  unsigned int interval_ms = 0;
+  if (data->critical_vibe_score) {
+    interval_ms = vibe_score_get_duration_ms(data->critical_vibe_score) +
+                  vibe_score_get_repeat_delay_ms(data->critical_vibe_score);
+  }
+  if (interval_ms == 0) {
+    if (data->critical_vibe_score) {
+      vibe_score_destroy(data->critical_vibe_score);
+      data->critical_vibe_score = nullptr;
+    }
+    interval_ms = CRITICAL_VIBE_FALLBACK_INTERVAL_MS;
+  }
+  data->critical_vibe_id = *id;
+  data->critical_vibe_max = DIVIDE_CEIL(CRITICAL_VIBE_DURATION_MS, interval_ms);
+  data->critical_vibe_count = 1;
+  PBL_LOG_DBG("Critical vibe: start, interval=%ums, max=%u", interval_ms, data->critical_vibe_max);
+  prv_play_critical_vibe(data);
+  alerts_set_notification_vibe_timestamp();
+  data->critical_vibe_timer =
+      evented_timer_register(interval_ms, true /* repeating */, prv_critical_vibe_timer_cb, data);
+
+  // Keep the popup up until the vibe is acknowledged
+  if (!data->pop_timer_is_final) {
+    prv_cleanup_timer(&data->pop_timer_id);
+  }
+}
+
+/////////////////////
+// Discreet
+/////////////////////
+
+static bool prv_is_hidden_discreet(NotificationWindowData *data, const TimelineItem *item) {
+  return (drew_notification_get_flags(item) & DrewNotificationFlag_Discreet) &&
+         !uuid_equal(&item->header.id, &data->revealed_id);
+}
+
+/////////////////////
 // Peek Layer
 /////////////////////
 static void prv_peek_anim_stopped(Animation *animation, bool finished, void *context) {
@@ -319,7 +421,7 @@ static void prv_peek_anim_stopped(Animation *animation, bool finished, void *con
     prv_log_notification_vibe(finished ? "peek finished" : "peek interrupted",
                               &data->pending_vibe_id);
     data->pending_vibe = false;
-    prv_do_notification_vibe(data, &data->pending_vibe_id);
+    prv_do_notification_vibe(data, &data->pending_vibe_id, data->pending_vibe_critical);
   }
   if (data->pending_backlight) {
     data->pending_backlight = false;
@@ -339,7 +441,7 @@ static void prv_hide_peek_layer(void *context) {
   if (data->pending_vibe) {
     prv_log_notification_vibe("peek reveal", &data->pending_vibe_id);
     data->pending_vibe = false;
-    prv_do_notification_vibe(data, &data->pending_vibe_id);
+    prv_do_notification_vibe(data, &data->pending_vibe_id, data->pending_vibe_critical);
   }
   if (data->pending_backlight) {
     data->pending_backlight = false;
@@ -479,6 +581,10 @@ static void prv_show_peek_for_notification(NotificationWindowData *data, Uuid *i
 
 static void prv_remove_notification(NotificationWindowData *data, Uuid *notif_id,
                                     const bool should_close_am) {
+  if (prv_is_critical_vibe_active(data) && uuid_equal(notif_id, &data->critical_vibe_id)) {
+    prv_end_critical_vibe(data, "removed");
+  }
+
   // We have to check if the current presented notification is the one being
   // viewed.  If it is, then we check if we have an action menu and close it.
   // If we have an action menu and it's frozen we are waiting on an action result
@@ -533,6 +639,11 @@ PBL_T_STATIC LayoutLayer *prv_get_layout_handler(SwapLayer *swap_layer, int8_t r
       PBL_LOG_ERR("Failed to read reminder");
       goto cleanup;
     }
+  }
+
+  if (prv_is_hidden_discreet(data, item) && !drew_notification_hide_contents(item)) {
+    PBL_LOG_ERR("Failed to hide a discreet notification");
+    goto cleanup;
   }
 
   // Determine if the icon isn't a system resource (meaning we have to load its associated app id)
@@ -605,7 +716,7 @@ static void prv_refresh_pop_timer_with_timeout(NotificationWindowData *data, uin
 }
 
 static void prv_refresh_pop_timer(NotificationWindowData *data) {
-  if (data->pop_timer_is_final) {
+  if (data->pop_timer_is_final || prv_is_critical_vibe_active(data)) {
     return;
   }
 
@@ -1007,9 +1118,15 @@ static void prv_action_menu_did_close(ActionMenu *action_menu, const ActionMenuI
 
 static void prv_select_single_click_handler(ClickRecognizerRef recognizer, void *data) {
   NotificationWindowData *window_data = data;
+  const bool acknowledged = prv_end_critical_vibe(window_data, "acknowledged");
 
   TimelineItem *item = prv_get_current_notification(window_data);
-  if (!prv_should_provide_action_menu_for_item(window_data, item)) {
+  if (item && prv_is_hidden_discreet(window_data, item)) {
+    window_data->revealed_id = item->header.id;
+    prv_reload_swap_layer(window_data);
+    return;
+  }
+  if (acknowledged || !prv_should_provide_action_menu_for_item(window_data, item)) {
     return;
   }
 
@@ -1126,6 +1243,7 @@ static void prv_window_unload(Window *window) {
   if (data->pending_vibe) {
     prv_log_notification_vibe("dropped on unload", &data->pending_vibe_id);
   }
+  prv_stop_critical_vibe(data, "window closed");
   vibes_cancel();
   data->pending_vibe = false;
   if (data->color_preempted) {
@@ -1229,7 +1347,9 @@ static void prv_update_colors_handler(SwapLayer *swap_layer, GColor bg_color,
 
 static void prv_interaction_handler(SwapLayer *swap_layer, void *context) {
   NotificationWindowData *data = context;
-  prv_refresh_pop_timer(data);
+  if (!prv_end_critical_vibe(data, "acknowledged")) {
+    prv_refresh_pop_timer(data);
+  }
 }
 
 static void prv_set_dnd_icon_visible(bool is_visible) {
@@ -1324,6 +1444,7 @@ static void prv_init_notification_window(bool is_modal, bool allow_dismiss_all) 
   };
   data->action_menu = nullptr;
   data->dnd_icon_visible = false;
+  data->revealed_id = UUID_INVALID;
   if (data->pending_vibe) {
     prv_log_notification_vibe("dropped on init", &data->pending_vibe_id);
   }
@@ -1441,7 +1562,7 @@ bool notification_window_is_modal(void) {
 }
 
 void notification_window_add_notification_by_id(Uuid *id) {
-  prv_notification_window_add_notification(id, NotificationMobile);
+  prv_notification_window_add_notification(id, NotificationMobile, do_not_disturb_is_active());
 }
 
 //! The animate mode slides the notification in from the top as if it was a new notification.
@@ -1479,6 +1600,7 @@ void notification_window_focus_notification(Uuid *id, bool animated) {
 void notification_window_service_init(void) {
   pbl_mutex_init(&s_notification_window_mutex);
   s_notification_window_data.pop_timer_id = EVENTED_TIMER_INVALID_ID;
+  s_notification_window_data.critical_vibe_timer = EVENTED_TIMER_INVALID_ID;
   // Unconditional: prv_window_unload clears the slot on every platform, so the lock has to exist
   // even where images are never fetched.
   notification_image_service_init();
@@ -1530,8 +1652,12 @@ static void prv_handle_notification_acted_upon(Uuid *id) {
   }
 }
 
-static void prv_do_notification_vibe(NotificationWindowData *data, Uuid *id) {
+static void prv_do_notification_vibe(NotificationWindowData *data, Uuid *id, bool critical) {
   prv_log_notification_vibe("play requested", id);
+  if (critical) {
+    prv_start_critical_vibe(data, id);
+    return;
+  }
   TimelineItem *item = prv_get_current_notification(data);
   // Check if the current notification is the one we want to vibe for - if not then reload to make
   // sure it is, before reading the attributes.
@@ -1589,8 +1715,15 @@ static void prv_handle_notification_added_common(Uuid *id, NotificationType type
 
   alerts_incoming_alert_analytics();
 
-  if (do_not_disturb_is_active() &&
-      alerts_preferences_dnd_get_show_notifications() == DndNotificationModeHide) {
+  const uint8_t drew_flags =
+      (type == NotificationMobile) ? drew_notification_get_stored_flags(id) : 0;
+  const bool critical = (drew_flags & DrewNotificationFlag_Critical);
+  const AlertOverrides overrides = (drew_flags & DrewNotificationFlag_BreakQuietTime)
+                                       ? AlertOverrides_QuietTime
+                                       : AlertOverrides_None;
+  const bool quiet_time = !(overrides & AlertOverrides_QuietTime) && do_not_disturb_is_active();
+
+  if (quiet_time && alerts_preferences_dnd_get_show_notifications() == DndNotificationModeHide) {
     prv_log_notification_vibe("skipped: hidden by DND", id);
     return;
   }
@@ -1607,7 +1740,7 @@ static void prv_handle_notification_added_common(Uuid *id, NotificationType type
   bool is_new = !window_stack_contains_window(window_stack, &data->window);
   bool in_view = window_is_on_screen(&data->window);
 
-  prv_notification_window_add_notification(id, type);
+  prv_notification_window_add_notification(id, type, quiet_time);
 
   if (is_new) {
     data->first_notif_loaded = false;
@@ -1624,7 +1757,7 @@ static void prv_handle_notification_added_common(Uuid *id, NotificationType type
     // In DND mode notifications can get inserted into the middle of the list and we don't
     // want to change focus in this use case
     if (notifications_presented_list_current() != notifications_presented_list_first()) {
-      const bool should_animate = !do_not_disturb_is_active();
+      const bool should_animate = !quiet_time;
       notification_window_focus_notification(id, should_animate);
     } else {
       // If we are inserting into the middle of this list, just reload the swap layer so the
@@ -1633,23 +1766,31 @@ static void prv_handle_notification_added_common(Uuid *id, NotificationType type
     }
   }
 
-  if (alerts_should_vibrate_for_type(prv_alert_type_for_notification_type(type))) {
+  const AlertOverrides vibe_overrides =
+      overrides | (critical ? AlertOverrides_VibeHoldoff : AlertOverrides_None);
+  if (alerts_should_vibrate_for_type_with_overrides(prv_alert_type_for_notification_type(type),
+                                                    vibe_overrides)) {
     // Check if we should delay the vibration until the animation completes
     if (alerts_preferences_get_notification_vibe_delay() && data->peek_layer) {
       // Delay vibration until peek animation finishes
-      if (data->pending_vibe) {
+      const bool keep_pending_critical = data->pending_vibe && data->pending_vibe_critical;
+      if (data->pending_vibe && !keep_pending_critical) {
         prv_log_notification_vibe("replaced by newer notification", &data->pending_vibe_id);
       }
       prv_log_notification_vibe("deferred until peek reveal", id);
       data->pending_vibe = true;
-      data->pending_vibe_id = *id;
+      if (critical || !keep_pending_critical) {
+        data->pending_vibe_id = *id;
+        data->pending_vibe_critical = critical;
+      }
     } else {
       // Vibe immediately
-      prv_do_notification_vibe(data, id);
+      prv_do_notification_vibe(data, id, critical);
     }
   }
 
-  if (alerts_should_enable_backlight_for_type(prv_alert_type_for_notification_type(type))) {
+  if (alerts_should_enable_backlight_for_type_with_overrides(
+          prv_alert_type_for_notification_type(type), overrides)) {
     // Check if we should delay the backlight until the animation completes (same as vibe delay)
     if (alerts_preferences_get_notification_vibe_delay() && data->peek_layer) {
       data->pending_backlight = true;
