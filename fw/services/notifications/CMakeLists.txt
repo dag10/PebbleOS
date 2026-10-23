@@ -13,6 +13,7 @@ set(sources
   ancs/nexmo.c
   do_not_disturb.c
   do_not_disturb_toggle.c
+  drew_notification.c
   notification_image.c
   notification_storage.c
   notifications.c
