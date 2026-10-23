@@ -807,3 +807,27 @@ void test_attribute__weather_pin_kind_deserializes(void) {
   cl_assert_equal_i(result.num_attributes, 2);
   cl_assert_equal_i(attribute_get_uint8(&result, AttributeIdWeatherPinKind, 0), 2);
 }
+
+void test_attribute__drew_notification_flags_deserializes(void) {
+  static const uint8_t serialized[] = {
+    0x01, // AttributeIdTitle
+    0x02, 0x00, 'H',  'i',
+    0x3f, // AttributeIdDrewNotificationFlags
+    0x01, 0x00, 0x07,
+  };
+  const uint8_t num_attributes = 2;
+  const uint8_t *end = serialized + sizeof(serialized);
+  bool has_attribute[NumAttributeIds] = {};
+  cl_assert_equal_b(attribute_check_serialized_list(serialized, end, num_attributes, has_attribute),
+                    true);
+  cl_assert_equal_b(has_attribute[AttributeIdDrewNotificationFlags], true);
+
+  Attribute attribute_buffer[num_attributes];
+  char data_buffer[16];
+  AttributeList result;
+  cl_assert_equal_b(prv_deserialize(serialized, sizeof(serialized), num_attributes,
+                                    attribute_buffer, data_buffer, sizeof(data_buffer), &result),
+                    true);
+  cl_assert_equal_i(result.num_attributes, 2);
+  cl_assert_equal_i(attribute_get_uint8(&result, AttributeIdDrewNotificationFlags, 0), 0x07);
+}
