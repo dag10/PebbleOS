@@ -307,3 +307,44 @@ void test_alerts__dnd_interruptions(void) {
   fake_rtc_set_ticks(rtc_get_ticks() + NOTIFICATION_VIBE_HOLDOFF_TICKS);
   cl_assert(alerts_should_enable_backlight_for_type(AlertOther));
 }
+
+void test_alerts__quiet_time_override(void) {
+  s_dnd_active = true;
+  alerts_set_mask(AlertMaskAllOn);
+  alerts_set_dnd_mask(AlertMaskAllOff);
+  alerts_preferences_dnd_set_notification_backlight(false);
+  fake_rtc_set_ticks(rtc_get_ticks() + NOTIFICATION_VIBE_HOLDOFF_TICKS);
+
+  cl_assert(!alerts_should_vibrate_for_type(AlertMobile));
+  cl_assert(!alerts_should_enable_backlight_for_type(AlertMobile));
+  cl_assert(alerts_should_vibrate_for_type_with_overrides(AlertMobile, AlertOverrides_QuietTime));
+  cl_assert(alerts_should_enable_backlight_for_type_with_overrides(AlertMobile,
+                                                                   AlertOverrides_QuietTime));
+
+  // The notification filter and low power mode still apply
+  alerts_set_mask(AlertMaskPhoneCalls);
+  cl_assert(!alerts_should_vibrate_for_type_with_overrides(AlertMobile, AlertOverrides_QuietTime));
+  cl_assert(!alerts_should_enable_backlight_for_type_with_overrides(AlertMobile,
+                                                                    AlertOverrides_QuietTime));
+  alerts_set_mask(AlertMaskAllOn);
+  s_low_power_active = true;
+  cl_assert(!alerts_should_vibrate_for_type_with_overrides(AlertMobile, AlertOverrides_QuietTime));
+
+  alerts_preferences_dnd_set_notification_backlight(true);
+}
+
+void test_alerts__vibe_holdoff_override(void) {
+  fake_rtc_set_ticks(rtc_get_ticks() + NOTIFICATION_VIBE_HOLDOFF_TICKS);
+  alerts_set_notification_vibe_timestamp();
+
+  cl_assert(!alerts_should_vibrate_for_type(AlertMobile));
+  cl_assert(alerts_should_vibrate_for_type_with_overrides(AlertMobile, AlertOverrides_VibeHoldoff));
+
+  // The holdoff override alone doesn't break through Quiet Time
+  s_dnd_active = true;
+  alerts_set_dnd_mask(AlertMaskAllOff);
+  cl_assert(
+      !alerts_should_vibrate_for_type_with_overrides(AlertMobile, AlertOverrides_VibeHoldoff));
+  cl_assert(alerts_should_vibrate_for_type_with_overrides(
+      AlertMobile, AlertOverrides_VibeHoldoff | AlertOverrides_QuietTime));
+}

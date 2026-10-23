@@ -37,3 +37,13 @@ bool PBL_WEAK alerts_should_notify_for_type(AlertType type) {
 bool PBL_WEAK alerts_should_vibrate_for_type(AlertType type) {
   return false;
 }
+
+bool PBL_WEAK alerts_should_enable_backlight_for_type_with_overrides(AlertType type,
+                                                                     AlertOverrides overrides) {
+  return false;
+}
+
+bool PBL_WEAK alerts_should_vibrate_for_type_with_overrides(AlertType type,
+                                                            AlertOverrides overrides) {
+  return false;
+}

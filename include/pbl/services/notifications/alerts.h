@@ -66,6 +66,32 @@ bool alerts_should_enable_backlight_for_type(AlertType type);
  */
 bool alerts_should_vibrate_for_type(AlertType type);
 
+/** @brief DrewPebbleOS: checks an alert may skip, for one notification. */
+typedef enum AlertOverrides {
+  AlertOverrides_None = 0,
+  /** Treat Do Not Disturb (Quiet Time) as off. */
+  AlertOverrides_QuietTime = 1 << 0,
+  /** Vibrate even within 3 seconds of the last notification vibe. */
+  AlertOverrides_VibeHoldoff = 1 << 1,
+} AlertOverrides;
+
+/**
+ * @brief alerts_should_enable_backlight_for_type() that may skip some checks.
+ *
+ * @param type Kind of alert.
+ * @param overrides AlertOverrides bits.
+ */
+bool alerts_should_enable_backlight_for_type_with_overrides(AlertType type,
+                                                            AlertOverrides overrides);
+
+/**
+ * @brief alerts_should_vibrate_for_type() that may skip some checks.
+ *
+ * @param type Kind of alert.
+ * @param overrides AlertOverrides bits.
+ */
+bool alerts_should_vibrate_for_type_with_overrides(AlertType type, AlertOverrides overrides);
+
 /**
  * @brief Record that the watch vibrated for a notification.
  *
