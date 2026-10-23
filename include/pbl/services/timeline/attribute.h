@@ -191,6 +191,11 @@ typedef enum {
   AttributeIdImageAspectRatio = 52,
   /** (uint8) WeatherPinKind of a weather pin. */
   AttributeIdWeatherPinKind = 53,
+  /**
+   * (uint8) DrewPebbleOS: DrewNotificationFlag bits of a notification. Kept well above
+   * upstream's ids, which are allocated in sequence.
+   */
+  AttributeIdDrewNotificationFlags = 63,
   /** Number of attribute ids. */
   NumAttributeIds,
 } AttributeId;
