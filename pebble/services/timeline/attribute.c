@@ -72,6 +72,7 @@ static AttributeType prv_attribute_type(AttributeId id) {
     case AttributeIdAlarmKind:
     case AttributeIdImageAspectRatio:
     case AttributeIdWeatherPinKind:
+    case AttributeIdDrewNotificationFlags:
       return AttributeTypeUint8;
     case AttributeIdIconTiny:
     case AttributeIdIconSmall:
