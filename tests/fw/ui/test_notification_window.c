@@ -37,6 +37,7 @@
 #include <stubs_content_indicator.h>
 #include <stubs_dialog.h>
 #include <stubs_do_not_disturb.h>
+#include <stubs_drew_notification.h>
 #include <stubs_event_loop.h>
 #include <stubs_event_service_client.h>
 #include <stubs_evented_timer.h>
