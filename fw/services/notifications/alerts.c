@@ -57,13 +57,22 @@ bool alerts_should_notify_for_type(AlertType type) {
   return mask & type;
 }
 
+static bool prv_is_dnd_active(AlertOverrides overrides) {
+  return !(overrides & AlertOverrides_QuietTime) && do_not_disturb_is_active();
+}
+
 bool alerts_should_enable_backlight_for_type(AlertType type) {
+  return alerts_should_enable_backlight_for_type_with_overrides(type, AlertOverrides_None);
+}
+
+bool alerts_should_enable_backlight_for_type_with_overrides(AlertType type,
+                                                            AlertOverrides overrides) {
   if (!alerts_preferences_get_notification_backlight()) {
     return false;
   }
 
-  if (do_not_disturb_is_active() && (!alerts_preferences_dnd_get_notification_backlight() ||
-                                     !(alerts_preferences_dnd_get_mask() & type))) {
+  if (prv_is_dnd_active(overrides) && (!alerts_preferences_dnd_get_notification_backlight() ||
+                                       !(alerts_preferences_dnd_get_mask() & type))) {
     return false;
   }
 
@@ -71,7 +80,11 @@ bool alerts_should_enable_backlight_for_type(AlertType type) {
 }
 
 bool alerts_should_vibrate_for_type(AlertType type) {
-  if (do_not_disturb_is_active() && !(alerts_preferences_dnd_get_mask() & type)) {
+  return alerts_should_vibrate_for_type_with_overrides(type, AlertOverrides_None);
+}
+
+bool alerts_should_vibrate_for_type_with_overrides(AlertType type, AlertOverrides overrides) {
+  if (prv_is_dnd_active(overrides) && !(alerts_preferences_dnd_get_mask() & type)) {
     PBL_LOG_DBG("Alert vibe suppressed: type=%d, DND", type);
     return false;
   }
@@ -86,7 +99,7 @@ bool alerts_should_vibrate_for_type(AlertType type) {
   }
 
   const int64_t elapsed_ms = prv_get_ms_since_last_notification_vibe();
-  if (elapsed_ms < NOTIFICATION_VIBE_HOLDOFF_MS) {
+  if (!(overrides & AlertOverrides_VibeHoldoff) && elapsed_ms < NOTIFICATION_VIBE_HOLDOFF_MS) {
     PBL_LOG_DBG("Alert vibe suppressed: type=%d, holdoff elapsed=%dms", type, (int)elapsed_ms);
     return false;
   }
