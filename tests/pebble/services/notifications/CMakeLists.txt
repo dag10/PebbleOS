@@ -55,3 +55,16 @@ pbl_clar_test(test_nexmo
     pebble/services/timeline/attribute_group.c
     tests/fakes/fake_rtc.c
 )
+
+pbl_clar_test(test_drew_notification
+  SOURCES
+    pebble/services/notifications/drew_notification.c
+    pebble/kernel/rand.c
+    third_party/tinymt/TinyMT/tinymt/tinymt32.c
+    pebble/services/timeline/item.c
+    pebble/services/timeline/attributes_actions.c
+    pebble/services/timeline/attribute_group.c
+    pebble/services/timeline/attribute.c
+    pebble/services/clock/time.c
+    tests/fakes/fake_rtc.c
+)
