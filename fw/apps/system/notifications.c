@@ -13,6 +13,7 @@
 #include <pbl/services/clock.h>
 #include <pbl/services/i18n/i18n.h>
 #include <pbl/services/notifications/alerts_preferences_private.h>
+#include <pbl/services/notifications/drew_notification.h>
 #include <pbl/services/notifications/notification_storage.h>
 #include <pbl/services/timeline/notification_layout.h>
 #include <pbl/util/list.h>
@@ -158,6 +159,11 @@ static PBL_NOINLINE LoadedNotificationNode *prv_loaded_notification_list_load_it
   // load the notification
   TimelineItem notification;
   if (!notification_storage_get((Uuid *)id, &notification)) {
+    return nullptr;
+  }
+  if ((drew_notification_get_flags(&notification) & DrewNotificationFlag_Discreet) &&
+      !drew_notification_hide_contents(&notification)) {
+    timeline_item_free_allocated_buffer(&notification);
     return nullptr;
   }
 
