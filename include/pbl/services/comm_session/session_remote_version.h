@@ -83,6 +83,10 @@ typedef struct PBL_PACKED {
       bool app_permissions_support : 1;
       /** Multiple packs, phone management, and active-language selection. */
       bool multiple_language_packs_support : 1;
+      /** Reserved: DrewPebbleOS phone-only capabilities. */
+      uint8_t padding_29_30 : 2;
+      /** DrewPebbleOS: notification flags attribute (drew_notification.h). */
+      bool drew_notification_flags_support : 1;
     };
     /** All flags as a bitset. */
     uint64_t flags;
