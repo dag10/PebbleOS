@@ -22,6 +22,7 @@
 #include <pbl/services/notifications/alerts_preferences_private.h>
 
 #include <stubs_buffer.h>
+#include <stubs_drew_notification.h>
 #include <stubs_imaging.h>
 
 // Local replacements for stubs_alerts_preferences.h so the notification status
