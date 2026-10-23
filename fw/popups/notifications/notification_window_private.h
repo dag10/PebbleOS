@@ -5,6 +5,7 @@
 
 #include <pbl/services/evented_timer.h>
 #include <pbl/services/timeline/swap_layer.h>
+#include <pbl/services/vibes/vibe_score.h>
 
 #include <applib/ui/action_menu_window.h>
 #include <applib/ui/status_bar_layer.h>
@@ -54,7 +55,18 @@ typedef struct NotificationWindowData {
   // Delayed vibration support - vibe at end of animation instead of immediately
   bool pending_vibe;
   Uuid pending_vibe_id;
+  bool pending_vibe_critical;
   bool pending_backlight;
+
+  // DrewPebbleOS: alarm-like vibe of a critical notification, repeated until a button press
+  EventedTimerID critical_vibe_timer;
+  Uuid critical_vibe_id;
+  VibeScore *critical_vibe_score;
+  uint16_t critical_vibe_count;
+  uint16_t critical_vibe_max;
+
+  // DrewPebbleOS: discreet notification shown with Select, until the window closes
+  Uuid revealed_id;
 
   // Set once we've pushed a modal color preempt for this notification's
   // backlight pulse, so window_unload knows to balance it with a pop.
