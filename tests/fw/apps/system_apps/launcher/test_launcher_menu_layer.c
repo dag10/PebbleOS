@@ -215,6 +215,7 @@ bool timeline_resources_is_system(TimelineResourceId timeline_id) {
 #include <stubs_click.h>
 #include <stubs_clock.h>
 #include <stubs_do_not_disturb.h>
+#include <stubs_drew_notification.h>
 #include <stubs_event_service_client.h>
 #include <stubs_events.h>
 #include <stubs_health_util.h>
