@@ -203,6 +203,8 @@ bool timeline_resources_is_system(TimelineResourceId timeline_id) {
 // Stubs
 /////////////////////
 
+#include <stubs_drew_notification.h>
+
 GColor shell_prefs_get_theme_highlight_color(void) {
   // Black and white displays always highlight in black
   return PBL_IF_COLOR_ELSE(GColorWhite, GColorBlack);
