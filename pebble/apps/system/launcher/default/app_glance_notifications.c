@@ -5,9 +5,11 @@
 
 #include "app_glance_structured.h"
 
+#include <pbl/i18n/i18n.h>
 #include <pbl/kernel/assert.h>
 #include <pbl/kernel/compiler.h>
 #include <pbl/kernel/fatal.h>
+#include <pbl/services/notifications/drew_notification.h>
 #include <pbl/services/notifications/notification_storage.h>
 #include <pbl/services/timeline/attribute.h>
 #include <pbl/util/string.h>
@@ -98,7 +100,10 @@ static void prv_update_glance_for_last_notification_received(
 
   // Determine which string we should use in the glance subtitle
   const char *string_to_use_in_glance_subtitle = "";
-  if (!IS_EMPTY_STRING(title)) {
+  if (drew_notification_get_flags(&notification) & DrewNotificationFlag_Discreet) {
+    string_to_use_in_glance_subtitle =
+        drew_notification_get_placeholder_title(notifications_glance);
+  } else if (!IS_EMPTY_STRING(title)) {
     string_to_use_in_glance_subtitle = title;
   } else if (!IS_EMPTY_STRING(subtitle)) {
     // Fallback to the subtitle
@@ -112,6 +117,7 @@ static void prv_update_glance_for_last_notification_received(
   const size_t glance_subtitle_size = sizeof(notifications_glance->subtitle);
   strncpy(notifications_glance->subtitle, string_to_use_in_glance_subtitle, glance_subtitle_size);
   notifications_glance->subtitle[glance_subtitle_size - 1] = '\0';
+  pbl_i18n_free_all(notifications_glance);
 }
 
 static void prv_notification_event_handler(PebbleEvent *event, void *context) {
