@@ -60,31 +60,46 @@ void test_workout_selection__cleanup(void) {
 static void prv_select_workout_cb(ActivitySessionType type) {
 }
 
-static void prv_create_window_and_render(uint16_t row) {
-  WorkoutSelectionWindow *selection_window = workout_selection_push(prv_select_workout_cb);
+static WorkoutSelectionWindow *prv_create_window_and_render(ActivitySessionType type) {
+  WorkoutSelectionWindow *selection_window = workout_selection_push(type, prv_select_workout_cb);
   Window *window = &selection_window->window;
-  MenuLayer *menu_layer = &selection_window->menu_layer;
-
-  menu_layer_set_selected_index(menu_layer, MenuIndex(0, row), MenuRowAlignCenter, false);
 
   window_set_on_screen(window, true, true);
   window_render(window, &s_ctx);
+
+  return selection_window;
+}
+
+static uint16_t prv_get_selected_row(WorkoutSelectionWindow *selection_window) {
+  return menu_layer_get_selected_index(&selection_window->menu_layer).row;
 }
 
 // Tests
 //////////////////////
 
 void test_workout_selection__render_run_selected(void) {
-  prv_create_window_and_render(0);
+  WorkoutSelectionWindow *selection_window = prv_create_window_and_render(ActivitySessionType_Run);
+  cl_assert_equal_i(prv_get_selected_row(selection_window), 0);
   cl_check(gbitmap_pbi_eq(&s_ctx.dest_bitmap, TEST_PBI_FILE));
 }
 
 void test_workout_selection__render_walk_selected(void) {
-  prv_create_window_and_render(1);
+  WorkoutSelectionWindow *selection_window = prv_create_window_and_render(ActivitySessionType_Walk);
+  cl_assert_equal_i(prv_get_selected_row(selection_window), 1);
   cl_check(gbitmap_pbi_eq(&s_ctx.dest_bitmap, TEST_PBI_FILE));
 }
 
 void test_workout_selection__render_workout_selected(void) {
-  prv_create_window_and_render(2);
+  WorkoutSelectionWindow *selection_window = prv_create_window_and_render(ActivitySessionType_Open);
+  cl_assert_equal_i(prv_get_selected_row(selection_window), 2);
   cl_check(gbitmap_pbi_eq(&s_ctx.dest_bitmap, TEST_PBI_FILE));
+}
+
+void test_workout_selection__unlisted_type_selects_first_row(void) {
+  WorkoutSelectionWindow *selection_window =
+      workout_selection_push(ActivitySessionType_None, prv_select_workout_cb);
+  cl_assert_equal_i(prv_get_selected_row(selection_window), 0);
+
+  selection_window = workout_selection_push(ActivitySessionType_Sleep, prv_select_workout_cb);
+  cl_assert_equal_i(prv_get_selected_row(selection_window), 0);
 }

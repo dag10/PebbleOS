@@ -63,8 +63,20 @@ static void prv_prep_and_open_active_window(ActivitySessionType type) {
   workout_active_window_push(data->active_window);
 }
 
+static void prv_remember_activity_type(ActivitySessionType type) {
+  s_activity_type = type;
+  activity_prefs_set_workout_last_type(type);
+}
+
+static ActivitySessionType prv_get_initial_activity_type(void) {
+  const ActivitySessionType type = activity_prefs_get_workout_last_type();
+  return workout_service_is_workout_type_supported(type) ? type : DEFAULT_ACTIVITY_TYPE;
+}
+
 static void prv_start_workout_cb(ActivitySessionType type) {
-  workout_service_start_workout(type);
+  if (workout_service_start_workout(type)) {
+    prv_remember_activity_type(type);
+  }
   prv_prep_and_open_active_window(type);
 }
 
@@ -83,6 +95,7 @@ static void prv_detected_workout_up_click_handler(ClickRecognizerRef recognizer,
   WorkoutAppData *data = context;
 
   if (workout_service_takeover_activity_session(&data->ongoing_session)) {
+    prv_remember_activity_type(data->ongoing_session.type);
     prv_prep_and_open_active_window(data->ongoing_session.type);
   }
 
@@ -208,6 +221,8 @@ static void prv_init(void) {
   app_state_set_user_data(data);
 
   workout_service_frontend_opened();
+
+  s_activity_type = prv_get_initial_activity_type();
 
   if (workout_service_is_workout_ongoing()) {
     if (app_launch_get_args() == WorkoutLaunchArg_EndWorkout) {

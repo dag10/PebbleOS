@@ -271,6 +271,10 @@ static uint8_t s_activity_prefs_health_app_opened = 0;
 #define PREF_KEY_ACTIVITY_WORKOUT_APP_OPENED "activityWorkoutAppOpened"
 static uint8_t s_activity_prefs_workout_app_opened = 0;
 
+// ActivitySessionType of the last workout started in the Workout app
+#define PREF_KEY_ACTIVITY_WORKOUT_LAST_TYPE "activityWorkoutLastType"
+static uint8_t s_activity_prefs_workout_last_type = ActivitySessionType_None;
+
 #define PREF_KEY_ALARMS_APP_OPENED "alarmsAppOpened"
 static uint8_t s_alarms_app_opened = 0;
 
@@ -753,6 +757,11 @@ static bool prv_set_s_activity_prefs_health_app_opened(uint8_t *version) {
 
 static bool prv_set_s_activity_prefs_workout_app_opened(uint8_t *version) {
   s_activity_prefs_workout_app_opened = *version;
+  return true;
+}
+
+static bool prv_set_s_activity_prefs_workout_last_type(uint8_t *type) {
+  s_activity_prefs_workout_last_type = *type;
   return true;
 }
 
@@ -1994,6 +2003,18 @@ void activity_prefs_set_workout_app_opened_version(uint8_t version) {
     s_activity_prefs_workout_app_opened = version;
     prv_pref_set(PREF_KEY_ACTIVITY_WORKOUT_APP_OPENED, &s_activity_prefs_workout_app_opened,
                  sizeof(s_activity_prefs_workout_app_opened));
+  }
+}
+
+ActivitySessionType activity_prefs_get_workout_last_type(void) {
+  return s_activity_prefs_workout_last_type;
+}
+
+void activity_prefs_set_workout_last_type(ActivitySessionType type) {
+  if (s_activity_prefs_workout_last_type != type) {
+    s_activity_prefs_workout_last_type = type;
+    prv_pref_set(PREF_KEY_ACTIVITY_WORKOUT_LAST_TYPE, &s_activity_prefs_workout_last_type,
+                 sizeof(s_activity_prefs_workout_last_type));
   }
 }
 

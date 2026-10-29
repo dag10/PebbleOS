@@ -97,7 +97,7 @@ static void prv_up_click_handler(ClickRecognizerRef recognizer, void *context) {
 static void prv_down_click_handler(ClickRecognizerRef recognizer, void *context) {
   WorkoutSummaryWindow *summary_window = context;
 
-  workout_selection_push(summary_window->select_workout_cb);
+  workout_selection_push(summary_window->activity_type, summary_window->select_workout_cb);
 }
 
 static void prv_click_config_provider(void *context) {

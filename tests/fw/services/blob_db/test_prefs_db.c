@@ -123,3 +123,16 @@ void test_prefs_db__insert_and_read(void) {
   cl_assert(prefs_db_read((uint8_t *)key, key_len, (uint8_t *)&get_value, sizeof(get_value) + 1) <
             0);
 }
+
+void test_prefs_db__workout_last_type(void) {
+  const char *key = "activityWorkoutLastType";
+  const int key_len = strlen(key);
+
+  activity_prefs_set_workout_last_type(ActivitySessionType_Walk);
+  cl_assert_equal_i(activity_prefs_get_workout_last_type(), ActivitySessionType_Walk);
+
+  // Stored as the ActivitySessionType value, not a menu position
+  uint8_t stored_type;
+  cl_assert_equal_i(prefs_db_read((uint8_t *)key, key_len, &stored_type, sizeof(stored_type)), 0);
+  cl_assert_equal_i(stored_type, ActivitySessionType_Walk);
+}
