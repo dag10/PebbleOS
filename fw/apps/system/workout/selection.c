@@ -55,15 +55,6 @@ static ActivitySessionType prv_get_activity_type(WorkoutType workout_type) {
   }
 }
 
-static uint16_t prv_get_row_for_activity_type(ActivitySessionType activity_type) {
-  for (WorkoutType workout_type = 0; workout_type < WorkoutTypeCount; workout_type++) {
-    if (prv_get_activity_type(workout_type) == activity_type) {
-      return workout_type;
-    }
-  }
-  return 0;
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //! Menu Layer Callbacks
 
@@ -159,8 +150,7 @@ static void prv_window_unload_handler(Window *window) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //! Public API
 
-WorkoutSelectionWindow *workout_selection_push(ActivitySessionType selected_type,
-                                               SelectWorkoutCallback select_workout_cb) {
+WorkoutSelectionWindow *workout_selection_push(SelectWorkoutCallback select_workout_cb) {
   WorkoutSelectionWindow *selection_window = app_zalloc_check(sizeof(WorkoutSelectionWindow));
 
   selection_window->select_workout_cb = select_workout_cb;
@@ -195,8 +185,6 @@ WorkoutSelectionWindow *workout_selection_push(ActivitySessionType selected_type
       menu_layer, shell_prefs_get_menu_scroll_vibe_behavior() == MenuScrollVibeOnWrapAround);
   menu_layer_set_scroll_vibe_on_blocked(
       menu_layer, shell_prefs_get_menu_scroll_vibe_behavior() == MenuScrollVibeOnLocked);
-  const uint16_t selected_row = prv_get_row_for_activity_type(selected_type);
-  menu_layer_set_selected_index(menu_layer, MenuIndex(0, selected_row), MenuRowAlignCenter, false);
   layer_add_child(&selection_window->window.layer, menu_layer_get_layer(menu_layer));
 
   app_window_stack_push(&selection_window->window, true);

@@ -636,20 +636,6 @@ uint8_t activity_prefs_get_workout_app_opened_version(void);
 void activity_prefs_set_workout_app_opened_version(uint8_t version);
 
 /**
- * @brief Get the type of the last workout started in the workout app.
- *
- * @return Session type, @ref ActivitySessionType_None if none was started yet.
- */
-ActivitySessionType activity_prefs_get_workout_last_type(void);
-
-/**
- * @brief Record the type of a workout started in the workout app.
- *
- * @param type Session type.
- */
-void activity_prefs_set_workout_last_type(ActivitySessionType type);
-
-/**
  * @brief Enable or disable activity insights.
  *
  * @param enable If true, enable activity insights.
