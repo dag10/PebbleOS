@@ -120,7 +120,7 @@ jobs:
             echo
             echo "Changes since $prev:"
             echo
-            git log --reverse --no-merges --format='- %s (%h)' "$prev..$TAG"
+            git log --no-merges --format='- %s (%h)' "$prev..$TAG"
           } > release-notes.md
           cat release-notes.md
 
