@@ -23,7 +23,7 @@ const FirmwareMetadata TINTIN_METADATA = {
 };
 
 // The features this firmware announces.
-#define LOCAL_FEATURES (DREW_FEATURE_BIT(DrewFeaturePrefs))
+#define LOCAL_FEATURES (DREW_FEATURE_BIT(DrewFeatureUpdates) | DREW_FEATURE_BIT(DrewFeaturePrefs))
 
 static CommSession *s_session;
 static bool s_has_gateway;
@@ -38,6 +38,18 @@ typedef struct Sent {
 } Sent;
 static Sent s_sent[MAX_SENT];
 static int s_num_sent;
+
+static int s_num_updates_messages;
+static uint8_t s_updates_command;
+static Sent s_updates_payload;
+
+void drew_updates_handle_message(uint8_t command, const uint8_t *payload, size_t length) {
+  s_num_updates_messages++;
+  s_updates_command = command;
+  cl_assert(length <= sizeof(s_updates_payload.data));
+  memcpy(s_updates_payload.data, payload, length);
+  s_updates_payload.length = length;
+}
 
 CommSession *comm_session_get_system_session(void) {
   return s_session;
@@ -131,6 +143,7 @@ void test_drew_protocol__initialize(void) {
   s_gateway = 3;
   s_num_sent = 0;
   s_num_feature_events = 0;
+  s_num_updates_messages = 0;
   s_session_event_info = nullptr;
   drew_protocol_init();
   fake_system_task_callbacks_invoke_pending();
@@ -164,6 +177,30 @@ void test_drew_protocol__send_frames_the_payload(void) {
   cl_assert_equal_m(s_sent[1].data, stop, sizeof(stop));
   cl_assert_equal_i(s_sent[2].length, sizeof(heartbeat));
   cl_assert_equal_m(s_sent[2].data, heartbeat, sizeof(heartbeat));
+}
+
+void test_drew_protocol__updates_messages_from_the_spec(void) {
+  // ListRequest with RECHECK.
+  const uint8_t recheck[] = {0x01};
+  cl_assert(drew_protocol_send(DrewServiceUpdates, 0x01, recheck, sizeof(recheck)));
+  fake_system_task_callbacks_invoke_pending();
+  const uint8_t list_request[] = {0x44, 0x52, 0x45, 0x57, 0x01, 0x01, 0x01, 0x01};
+  cl_assert_equal_i(s_sent[0].length, sizeof(list_request));
+  cl_assert_equal_m(s_sent[0].data, list_request, sizeof(list_request));
+
+  // InstallStatus for "fw:drew", Transferring, 42 %, no message.
+  DELIVER(0x44, 0x52, 0x45, 0x57, 0x01, 0x01, 0x83, 0x07, 0x66, 0x77, 0x3a, 0x64, 0x72, 0x65, 0x77,
+          0x02, 0x2a, 0x00);
+  cl_assert_equal_i(s_num_updates_messages, 1);
+  cl_assert_equal_i(s_updates_command, 0x83);
+  const uint8_t install_status[] = {0x07, 0x66, 0x77, 0x3a, 0x64, 0x72,
+                                    0x65, 0x77, 0x02, 0x2a, 0x00};
+  cl_assert_equal_i(s_updates_payload.length, sizeof(install_status));
+  cl_assert_equal_m(s_updates_payload.data, install_status, sizeof(install_status));
+
+  // An Updates command with the watch's direction bit isn't passed on.
+  DELIVER(0x44, 0x52, 0x45, 0x57, 0x01, 0x01, 0x01, 0x01);
+  cl_assert_equal_i(s_num_updates_messages, 1);
 }
 
 void test_drew_protocol__send_needs_a_session_and_fits_1024_bytes(void) {
