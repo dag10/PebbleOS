@@ -12,7 +12,7 @@
  * @ingroup services_process_management
  * @brief Persisted time each app was last used, for the launcher's "Recently used" order.
  *
- * Stored in the settings file @c app_usage, keyed by app UUID, with the UTC time of the last use
+ * Stored in the settings file @c drewappusage, keyed by app UUID, with the UTC time of the last use
  * as the value. An app is used when it launches or when an activity it owns starts in the
  * background (music starting to play, a workout starting).
  * @{

@@ -7,6 +7,7 @@
 #include "kernel/pebble_tasks.h"
 #include "pbl/drivers/rtc.h"
 #include "pbl/kernel/mutex.h"
+#include "pbl/services/filesystem/pfs.h"
 #include "pbl/services/settings/settings_file.h"
 #include "pbl/services/system_task.h"
 #include "pbl/util/math.h"
@@ -19,7 +20,9 @@
 
 PBL_LOG_MODULE_DECLARE(service_process_management, CONFIG_SERVICE_PROCESS_MANAGEMENT_LOG_LEVEL);
 
-#define USAGE_FILE "app_usage"
+#define USAGE_FILE "drewappusage"
+//! The file's name before it took the DrewPebbleOS prefix; moved once by prv_migrate_locked().
+#define OLD_USAGE_FILE "app_usage"
 // A record takes 28 bytes, so this fits about 140 apps before the oldest half is dropped.
 #define USAGE_FILE_SIZE PBL_KIB(4)
 
@@ -31,6 +34,58 @@ typedef struct {
 static PBL_MUTEX_DEFINE(s_mutex);
 //! Most recently written app; recording it again cannot change the order.
 static Uuid s_last_recorded = UUID_INVALID_INIT;
+//! The old file has been looked for since boot.
+static bool s_migrated;
+
+//////////////////
+// Migration
+
+static bool prv_file_exists(const char *name) {
+  const int fd = pfs_open(name, OP_FLAG_READ, FILE_TYPE_STATIC, 0);
+  if (fd < 0) {
+    return false;
+  }
+  pfs_close(fd);
+  return true;
+}
+
+static bool prv_copy_record_cb(SettingsFile *old_file, SettingsRecordInfo *info, void *context) {
+  if ((info->key_len != sizeof(Uuid)) || (info->val_len != sizeof(uint32_t))) {
+    return true;
+  }
+  UsageRecord record;
+  info->get_key(old_file, &record.uuid, sizeof(record.uuid));
+  info->get_val(old_file, &record.last_used, sizeof(record.last_used));
+  settings_file_set(context, &record.uuid, sizeof(record.uuid), &record.last_used,
+                    sizeof(record.last_used));
+  return true;
+}
+
+//! Moves the usage history from the file's old, unprefixed name, which upstream could pick for
+//! a file of its own. Call with the mutex held.
+static void prv_migrate_locked(void) {
+  if (s_migrated) {
+    return;
+  }
+  s_migrated = true;
+  if (!prv_file_exists(OLD_USAGE_FILE)) {
+    return;
+  }
+  if (!prv_file_exists(USAGE_FILE)) {
+    SettingsFile old_file;
+    SettingsFile new_file;
+    if (settings_file_open(&old_file, OLD_USAGE_FILE, USAGE_FILE_SIZE) != S_SUCCESS) {
+      return;
+    }
+    if (settings_file_open(&new_file, USAGE_FILE, USAGE_FILE_SIZE) == S_SUCCESS) {
+      settings_file_each(&old_file, prv_copy_record_cb, &new_file);
+      settings_file_close(&new_file);
+      PBL_LOG_INFO("Moved %s to %s", OLD_USAGE_FILE, USAGE_FILE);
+    }
+    settings_file_close(&old_file);
+  }
+  pfs_remove(OLD_USAGE_FILE);
+}
 
 //////////////////
 // Write
@@ -78,6 +133,7 @@ static void prv_write_cb(void *data) {
   UsageRecord *record = data;
 
   pbl_mutex_lock(&s_mutex, PBL_FOREVER);
+  prv_migrate_locked();
   if (!uuid_equal(&record->uuid, &s_last_recorded)) {
     SettingsFile file;
     if (settings_file_open(&file, USAGE_FILE, USAGE_FILE_SIZE) == S_SUCCESS) {
@@ -150,6 +206,7 @@ AppUsageList *app_usage_storage_read(void) {
 
   AppUsageList *list = NULL;
   pbl_mutex_lock(&s_mutex, PBL_FOREVER);
+  prv_migrate_locked();
   SettingsFile file;
   if (settings_file_open(&file, USAGE_FILE, USAGE_FILE_SIZE) == S_SUCCESS) {
     uint16_t count = 0;
@@ -183,5 +240,6 @@ uint32_t app_usage_list_get_last_used(const AppUsageList *list, const Uuid *uuid
 #if UNITTEST
 void app_usage_storage_reset_for_tests(void) {
   s_last_recorded = UUID_INVALID;
+  s_migrated = false;
 }
 #endif

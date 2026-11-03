@@ -92,6 +92,20 @@ def uuid_to_byte_hex_str(uuid):
     return "0x" + ", 0x".join(pieces)
 
 
+def check_unique_app_ids(apps):
+    # A clash would silently shadow an app. Entries behind ifdefs or platforms may share
+    # an id when they're never built together, so only unconditional ones are checked.
+    seen = {}
+    for entry in apps:
+        if entry.get("ifdefs") or entry.get("target_platforms"):
+            continue
+        if entry["id"] in seen:
+            raise ValueError(
+                f"App id {entry['id']} is used by both {seen[entry['id']]} and {entry['enum']}"
+            )
+        seen[entry["id"]] = entry["enum"]
+
+
 def cmd_app_registry(args):
     config = read_config(args.config)
     with open(args.input) as f:
@@ -99,6 +113,7 @@ def cmd_app_registry(args):
 
     system_apps = definition["system_apps"]
     resource_apps = [] if args.no_resource_apps else definition["resource_apps"]
+    check_unique_app_ids(system_apps + resource_apps)
 
     def entry_enabled(entry):
         defines = entry.get("ifdefs") or []
@@ -195,6 +210,17 @@ def cmd_app_registry(args):
 def cmd_endpoints_table(args):
     with open(args.input) as f:
         definition = json.load(f)
+
+    # An endpoint id used twice would hand one endpoint's messages to the other.
+    seen = {}
+    for eid, eid_str, _access, cb_str, *_ in (
+        definition["prf_and_normal_fw"] + definition["normal_fw_only"]
+    ):
+        if eid in seen:
+            raise ValueError(
+                f"Endpoint {eid_str} is used by both {seen[eid]} and {cb_str}"
+            )
+        seen[eid] = cb_str
 
     endpoints = list(definition["prf_and_normal_fw"])
     if not args.recovery:

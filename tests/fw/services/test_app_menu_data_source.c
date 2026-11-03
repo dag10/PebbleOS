@@ -5,6 +5,7 @@
 #include <pbl/services/blob_db/app_db.h>
 #include <pbl/services/filesystem/pfs.h>
 #include <pbl/services/process_management/app_usage_storage.h>
+#include <pbl/services/settings/settings_file.h>
 #include <pbl/services/system_task.h>
 #include <pbl/util/build_id.h>
 #include <pbl/util/size.h>
@@ -686,6 +687,44 @@ void test_app_menu_data_source__recently_used_survives_reboot(void) {
   cl_assert_equal_i(first->last_used, 3000);
   cl_assert_equal_i(second->install_id, APP_ID_ALARMS);
   cl_assert_equal_i(second->last_used, 1000);
+  app_menu_data_source_deinit(&data_source);
+}
+
+void test_app_menu_data_source__recently_used_survives_the_file_rename(void) {
+  // Usage recorded before the file took its DrewPebbleOS name.
+  SettingsFile old_file;
+  cl_assert_equal_i(settings_file_open(&old_file, "app_usage", 4096), S_SUCCESS);
+  const struct {
+    AppInstallId install_id;
+    uint32_t last_used;
+  } old_uses[] = {{APP_ID_ALARMS, 1000}, {BG_COUNTER_APP_ID, 2000}};
+  for (size_t i = 0; i < ARRAY_LENGTH(old_uses); i++) {
+    Uuid uuid;
+    cl_assert(app_install_get_uuid_for_install_id(old_uses[i].install_id, &uuid));
+    cl_assert_equal_i(settings_file_set(&old_file, &uuid, sizeof(uuid), &old_uses[i].last_used,
+                                        sizeof(old_uses[i].last_used)),
+                      S_SUCCESS);
+  }
+  settings_file_close(&old_file);
+
+  prv_init_apps_data_source(AppMenuSortMode_RecentlyUsed);
+  AppMenuNode *first = app_menu_data_source_get_node_at_index(&data_source, 0);
+  AppMenuNode *second = app_menu_data_source_get_node_at_index(&data_source, 1);
+  cl_assert_equal_i(first->install_id, BG_COUNTER_APP_ID);
+  cl_assert_equal_i(first->last_used, 2000);
+  cl_assert_equal_i(second->install_id, APP_ID_ALARMS);
+  cl_assert_equal_i(second->last_used, 1000);
+  app_menu_data_source_deinit(&data_source);
+
+  // The old file is gone, and new uses land next to the moved ones.
+  cl_assert(pfs_open("app_usage", OP_FLAG_READ, FILE_TYPE_STATIC, 0) < 0);
+  app_usage_storage_reset_for_tests();
+  prv_record_usage_at(APP_ID_WORKOUT, 3000);
+  prv_init_apps_data_source(AppMenuSortMode_RecentlyUsed);
+  first = app_menu_data_source_get_node_at_index(&data_source, 0);
+  second = app_menu_data_source_get_node_at_index(&data_source, 1);
+  cl_assert_equal_i(first->install_id, APP_ID_WORKOUT);
+  cl_assert_equal_i(second->install_id, BG_COUNTER_APP_ID);
   app_menu_data_source_deinit(&data_source);
 }
 
