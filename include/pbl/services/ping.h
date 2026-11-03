@@ -20,7 +20,3 @@
 void ping_send_if_due(void);
 
 /** @} */
-
-//! Starts pinging the phone every few minutes while its app asks for it
-//! (PBL_PP_CAP_DREW_HEARTBEAT), so a suspended iOS app wakes up regularly.
-void ping_heartbeat_init(void);
