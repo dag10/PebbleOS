@@ -11,14 +11,12 @@
  * @ingroup services
  * @brief DrewPebbleOS: the updates DrewMobileApp knows about, for Settings > Updates.
  *
- * Talks to the phone over endpoint 0xde01 when its app announces
- * CommSessionDrewUpdatesSupport. Keeps the last list received since boot. Posts
+ * Talks to the phone as service Updates on the Drew endpoint (drew_protocol.h) when both sides
+ * announce DrewFeatureUpdates. Keeps the last list received since boot. Posts
  * PEBBLE_DREW_EVENT (DrewEventUpdates) whenever the list, the check state or an install's status
  * changes.
  * @{
  */
-
-#define DREW_UPDATES_ENDPOINT_ID (0xde01)
 
 #define DREW_UPDATES_MAX_ENTRIES      (8)
 #define DREW_UPDATES_ID_LENGTH        (48)
@@ -98,6 +96,9 @@ typedef struct DrewUpdateInstallStatus {
 } DrewUpdateInstallStatus;
 
 void drew_updates_init(void);
+
+//! Handles a message of service Updates; the Drew endpoint calls it on KernelBG.
+void drew_updates_handle_message(uint8_t command, const uint8_t *payload, size_t length);
 
 //! The connected phone app speaks the protocol.
 bool drew_updates_phone_supported(void);

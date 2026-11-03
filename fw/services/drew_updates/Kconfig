@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 config SERVICE_DREW_UPDATES
-    bool "DrewPebbleOS updates endpoint"
+    bool "DrewPebbleOS updates"
+    depends on SERVICE_DREW_PROTOCOL
     help
       DrewPebbleOS: lists the updates DrewMobileApp knows about and asks it to
       install one, for Settings > Updates.

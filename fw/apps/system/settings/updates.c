@@ -69,7 +69,6 @@ struct SettingsUpdatesData {
   UpdatesDetail *detail;
   EventServiceInfo updates_event_info;
   EventServiceInfo session_event_info;
-  EventServiceInfo capabilities_event_info;
 };
 
 // State
@@ -450,14 +449,8 @@ static void prv_expand_cb(SettingsCallbacks *context) {
     .handler = prv_event_handler,
     .context = data,
   };
-  data->capabilities_event_info = (EventServiceInfo){
-    .type = PEBBLE_CAPABILITIES_CHANGED_EVENT,
-    .handler = prv_event_handler,
-    .context = data,
-  };
   event_service_client_subscribe(&data->updates_event_info);
   event_service_client_subscribe(&data->session_event_info);
-  event_service_client_subscribe(&data->capabilities_event_info);
 
   // Re-check every time the page opens; the cached list shows meanwhile.
   prv_request_list_if_needed(data);
@@ -469,7 +462,6 @@ static void prv_hide_cb(SettingsCallbacks *context) {
   SettingsUpdatesData *data = (SettingsUpdatesData *)context;
   event_service_client_unsubscribe(&data->updates_event_info);
   event_service_client_unsubscribe(&data->session_event_info);
-  event_service_client_unsubscribe(&data->capabilities_event_info);
 }
 
 static void prv_deinit_cb(SettingsCallbacks *context) {

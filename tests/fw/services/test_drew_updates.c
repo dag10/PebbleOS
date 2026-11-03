@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include <pbl/services/comm_session/session.h>
+#include <pbl/services/drew_protocol.h>
 #include <pbl/services/drew_updates.h>
 
 #include <clar.h>
@@ -13,11 +14,8 @@
 #include <kernel/events.h>
 #include <stubs_logging.h>
 
-extern void drew_updates_protocol_msg_callback(CommSession *session, const uint8_t *data,
-                                               size_t length);
-
 static CommSession *s_session = (CommSession *)0x1;
-static bool s_has_capability;
+static bool s_has_feature;
 static int s_num_events;
 static uint8_t s_sent[64];
 static size_t s_sent_length;
@@ -27,16 +25,18 @@ CommSession *comm_session_get_system_session(void) {
   return s_session;
 }
 
-bool comm_session_has_capability(CommSession *session, CommSessionCapability capability) {
-  return s_has_capability && capability == CommSessionDrewUpdatesSupport;
+bool drew_protocol_has_feature(DrewFeature feature) {
+  return s_has_feature && feature == DrewFeatureUpdates;
 }
 
-bool comm_session_send_data(CommSession *session, uint16_t endpoint_id, const uint8_t *data,
-                            size_t length, uint32_t timeout_ms) {
-  cl_assert_equal_i(endpoint_id, DREW_UPDATES_ENDPOINT_ID);
-  cl_assert(length <= sizeof(s_sent));
-  memcpy(s_sent, data, length);
-  s_sent_length = length;
+//! Records the command and payload as s_sent[0] and s_sent[1...].
+bool drew_protocol_send(DrewService service, uint8_t command, const uint8_t *payload,
+                        size_t length) {
+  cl_assert_equal_i(service, DrewServiceUpdates);
+  cl_assert(1 + length <= sizeof(s_sent));
+  s_sent[0] = command;
+  memcpy(&s_sent[1], payload, length);
+  s_sent_length = 1 + length;
   s_num_sent++;
   return true;
 }
@@ -83,8 +83,9 @@ static void prv_str16(Buffer *b, const char *s) {
   b->length += length;
 }
 
+//! Delivers a message whose first byte is the command, as the Drew endpoint splits it.
 static void prv_deliver(const Buffer *b) {
-  drew_updates_protocol_msg_callback(s_session, b->data, b->length);
+  drew_updates_handle_message(b->data[0], &b->data[1], b->length - 1);
 }
 
 static void prv_header(uint16_t list_id, uint8_t status, uint8_t count, uint32_t last_checked,
@@ -136,7 +137,7 @@ static DrewUpdatesInfo prv_info(void) {
 /////////
 
 void test_drew_updates__initialize(void) {
-  s_has_capability = true;
+  s_has_feature = true;
   s_num_events = 0;
   s_num_sent = 0;
   s_sent_length = 0;
@@ -225,10 +226,9 @@ void test_drew_updates__too_many_entries_are_capped(void) {
 }
 
 void test_drew_updates__malformed_messages_are_ignored(void) {
-  const uint8_t truncated[] = {0x81, 0x01};
-  drew_updates_protocol_msg_callback(s_session, truncated, sizeof(truncated));
-  const uint8_t unknown[] = {0x42};
-  drew_updates_protocol_msg_callback(s_session, unknown, sizeof(unknown));
+  const uint8_t truncated[] = {0x01};
+  drew_updates_handle_message(0x81, truncated, sizeof(truncated));
+  drew_updates_handle_message(0x42, nullptr, 0);
   cl_assert_equal_i(s_num_events, 0);
 }
 
@@ -246,8 +246,8 @@ void test_drew_updates__request_list(void) {
   cl_assert_equal_i(s_sent[1], 0x00);
 }
 
-void test_drew_updates__nothing_is_sent_without_the_capability(void) {
-  s_has_capability = false;
+void test_drew_updates__nothing_is_sent_without_the_feature(void) {
+  s_has_feature = false;
   cl_assert(!drew_updates_phone_supported());
   cl_assert(!drew_updates_request_list(true /* recheck */));
   cl_assert(!drew_updates_request_install("fw:drew"));
@@ -305,4 +305,17 @@ void test_drew_updates__install_times_out_without_an_answer(void) {
   drew_updates_get_install_status(&status);
   cl_assert_equal_i(status.state, DrewUpdateInstallFailed);
   cl_assert_equal_s(status.message, "No answer from the phone");
+}
+
+void test_drew_updates__install_status_from_the_spec(void) {
+  // InstallStatus for "fw:drew", Transferring, 42 %, no message: the payload after the header.
+  const uint8_t payload[] = {0x07, 0x66, 0x77, 0x3a, 0x64, 0x72, 0x65, 0x77, 0x02, 0x2a, 0x00};
+  drew_updates_handle_message(0x83, payload, sizeof(payload));
+  DrewUpdateInstallStatus status;
+  drew_updates_get_install_status(&status);
+  cl_assert(status.valid);
+  cl_assert_equal_s(status.id, "fw:drew");
+  cl_assert_equal_i(status.state, DrewUpdateInstallTransferring);
+  cl_assert_equal_i(status.percent, 42);
+  cl_assert_equal_s(status.message, "");
 }
