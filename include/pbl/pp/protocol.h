@@ -112,8 +112,6 @@ enum pbl_pp_capability : uint32_t {
   PBL_PP_CAP_NOTIFICATION_WINDOW_STATE = 1U << 26,
   /** DrewPebbleOS: phone answers pings and wants one every few minutes to wake it. */
   PBL_PP_CAP_DREW_HEARTBEAT = 1U << 29,
-  /** DrewPebbleOS: phone plays a sound on SysMsgDrewFindPhone. Kept far above upstream's bits. */
-  PBL_PP_CAP_DREW_FIND_PHONE = 1U << 30,
 };
 
 /** @brief Capabilities as sent by the phone, bit for bit as @ref pbl_pp_capability. */
