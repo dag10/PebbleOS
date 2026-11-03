@@ -11,6 +11,7 @@
 #include <pbl/services/drew_protocol.h>
 #include <pbl/services/drew_updates.h>
 #include <pbl/services/new_timer/new_timer.h>
+#include <pbl/services/regular_timer.h>
 #include <pbl/services/settings/settings_file.h>
 #include <pbl/services/system_task.h>
 #include <pbl/util/math.h>
@@ -35,6 +36,8 @@ PBL_LOG_MODULE_DEFINE(service_drew_protocol, CONFIG_SERVICE_DREW_PROTOCOL_LOG_LE
 
 #define HELLO_RETRY_MS  (5000)
 #define HELLO_MAX_SENDS (3)
+
+#define HEARTBEAT_PERIOD_MINS (5)
 
 #define CACHE_FILE         "drewproto"
 #define CACHE_FILE_SIZE    (512)
@@ -62,6 +65,8 @@ static TimerID s_hello_timer = TIMER_INVALID_ID;
 static bool s_awaiting_phone_hello;
 static uint8_t s_hello_sends;
 
+static uint32_t s_heartbeat_cookie;
+
 // Features
 ////////////
 
@@ -70,6 +75,7 @@ uint64_t drew_protocol_local_features(void) {
 #ifdef CONFIG_SERVICE_DREW_UPDATES
   features |= DREW_FEATURE_BIT(DrewFeatureUpdates);
 #endif
+  features |= DREW_FEATURE_BIT(DrewFeatureHeartbeat);
   features |= DREW_FEATURE_BIT(DrewFeatureFindPhone);
   features |= DREW_FEATURE_BIT(DrewFeaturePrefs);
   return features;
@@ -238,6 +244,40 @@ static void prv_send_hello(uint8_t flags) {
   drew_protocol_send(DrewServiceCore, DrewCoreCommandWatchHello, payload, n);
 }
 
+// Heartbeat
+/////////////
+
+static void prv_put_le32(uint8_t *out, uint32_t value) {
+  for (int i = 0; i < 4; i++) {
+    out[i] = (uint8_t)(value >> (8 * i));
+  }
+}
+
+static uint32_t prv_get_le32(const uint8_t *in) {
+  return (uint32_t)in[0] | ((uint32_t)in[1] << 8) | ((uint32_t)in[2] << 16) |
+         ((uint32_t)in[3] << 24);
+}
+
+//! Wakes a phone app that asked for it (a suspended iOS app, for one) every few minutes.
+static void prv_send_heartbeat_kernel_bg_cb(void *unused) {
+  if (!drew_protocol_has_feature(DrewFeatureHeartbeat)) {
+    return;
+  }
+  uint8_t payload[4];
+  prv_put_le32(payload, ++s_heartbeat_cookie);
+  const bool sent =
+      drew_protocol_send(DrewServiceCore, DrewCoreCommandHeartbeat, payload, sizeof(payload));
+  PBL_LOG_DBG("Heartbeat %" PRIu32 ", sent=%d", s_heartbeat_cookie, (int)sent);
+}
+
+static void prv_heartbeat_timer_cb(void *unused) {
+  system_task_add_callback(prv_send_heartbeat_kernel_bg_cb, nullptr);
+}
+
+static RegularTimerInfo s_heartbeat_timer = {
+  .cb = prv_heartbeat_timer_cb,
+};
+
 // Handshake
 /////////////
 
@@ -343,6 +383,13 @@ static void prv_handle_core(uint8_t command, const uint8_t *payload, size_t leng
     case DrewCoreCommandPhoneHello:
       prv_handle_phone_hello(payload, length);
       return;
+    case DrewCoreCommandHeartbeatAck:
+      if (length < 4) {
+        PBL_LOG_WRN("Short HeartbeatAck");
+        return;
+      }
+      PBL_LOG_DBG("HeartbeatAck %" PRIu32, prv_get_le32(payload));
+      return;
     default:
       PBL_LOG_WRN("Unknown Core command 0x%x", command);
       return;
@@ -390,6 +437,7 @@ void drew_protocol_msg_callback(CommSession *session, const uint8_t *data, size_
 void drew_protocol_init(void) {
   s_hello_timer = new_timer_create();
   prv_load_cache();
+  regular_timer_add_multiminute_callback(&s_heartbeat_timer, HEARTBEAT_PERIOD_MINS);
 
   static EventServiceInfo s_session_event_info;
   s_session_event_info = (EventServiceInfo){

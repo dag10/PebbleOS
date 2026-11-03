@@ -10,6 +10,7 @@
 #include <clar.h>
 #include <fake_new_timer.h>
 #include <fake_pbl_malloc.h>
+#include <fake_regular_timer.h>
 #include <fake_settings_file.h>
 #include <fake_system_task.h>
 #include <kernel/events.h>
@@ -24,8 +25,8 @@ const FirmwareMetadata TINTIN_METADATA = {
 
 // The features this firmware announces.
 #define LOCAL_FEATURES                                                             \
-  (DREW_FEATURE_BIT(DrewFeatureUpdates) | DREW_FEATURE_BIT(DrewFeatureFindPhone) | \
-   DREW_FEATURE_BIT(DrewFeaturePrefs))
+  (DREW_FEATURE_BIT(DrewFeatureUpdates) | DREW_FEATURE_BIT(DrewFeatureHeartbeat) | \
+   DREW_FEATURE_BIT(DrewFeatureFindPhone) | DREW_FEATURE_BIT(DrewFeaturePrefs))
 
 static CommSession *s_session;
 static bool s_has_gateway;
@@ -356,6 +357,45 @@ void test_drew_protocol__session_close_stops_the_retries(void) {
   prv_session_event(false /* is_open */);
   cl_assert(!stub_new_timer_is_scheduled(s_new_timer_start_param_timer_id));
   cl_assert_equal_i(s_num_sent, 1);
+}
+
+// Heartbeat
+/////////////
+
+static void prv_fire_heartbeat_timer(void) {
+  RegularTimerInfo *timer = (RegularTimerInfo *)list_get_next(&s_minutes_callbacks);
+  cl_assert(timer);
+  fake_regular_timer_trigger(timer);
+  fake_system_task_callbacks_invoke_pending();
+}
+
+void test_drew_protocol__heartbeat_only_when_active(void) {
+  prv_fire_heartbeat_timer();
+  cl_assert_equal_i(s_num_sent, 0);
+  // Every feature but Heartbeat.
+  prv_phone_hello(0x00, 0x1d);
+  prv_fire_heartbeat_timer();
+  cl_assert_equal_i(s_num_sent, 0);
+
+  prv_phone_hello(0x00, 0x1f);
+  for (int i = 0; i < 7; i++) {
+    prv_fire_heartbeat_timer();
+  }
+  cl_assert_equal_i(s_num_sent, 7);
+  // The seventh heartbeat since boot has cookie 7.
+  const uint8_t heartbeat[] = {0x44, 0x52, 0x45, 0x57, 0x01, 0x00, 0x02, 0x07, 0x00, 0x00, 0x00};
+  cl_assert_equal_i(s_sent[6].length, sizeof(heartbeat));
+  cl_assert_equal_m(s_sent[6].data, heartbeat, sizeof(heartbeat));
+
+  // Its ack is only logged.
+  DELIVER(0x44, 0x52, 0x45, 0x57, 0x01, 0x00, 0x82, 0x07, 0x00, 0x00, 0x00);
+  DELIVER(0x44, 0x52, 0x45, 0x57, 0x01, 0x00, 0x82, 0x07);
+  cl_assert_equal_i(s_num_sent, 7);
+  cl_assert_equal_i(s_num_feature_events, 2);
+
+  s_session = nullptr;
+  prv_fire_heartbeat_timer();
+  cl_assert_equal_i(s_num_sent, 7);
 }
 
 // Cache
