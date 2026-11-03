@@ -11,6 +11,7 @@
 #include <pbl/services/blob_db/api.h>
 #include <pbl/services/blob_db/endpoint_private.h>
 #include <pbl/services/data_logging/data_logging_service.h>
+#include <pbl/services/drew_protocol.h>
 #include <pbl/services/drew_updates.h>
 #include <pbl/services/filesystem/pfs.h>
 #include <pbl/services/mic_capture.h>
@@ -138,6 +139,9 @@ void services_normal_init(void) {
 
   app_glance_service_init();
 
+#ifdef CONFIG_SERVICE_DREW_PROTOCOL
+  drew_protocol_init();
+#endif
 #ifdef CONFIG_SERVICE_DREW_UPDATES
   drew_updates_init();
 #endif

@@ -13,7 +13,8 @@
  *
  * Talks to the phone over endpoint 0xde01 when its app announces
  * CommSessionDrewUpdatesSupport. Keeps the last list received since boot. Posts
- * PEBBLE_DREW_UPDATES_EVENT whenever the list, the check state or an install's status changes.
+ * PEBBLE_DREW_EVENT (DrewEventUpdates) whenever the list, the check state or an install's status
+ * changes.
  * @{
  */
 

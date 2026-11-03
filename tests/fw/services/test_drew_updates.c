@@ -42,7 +42,8 @@ bool comm_session_send_data(CommSession *session, uint16_t endpoint_id, const ui
 }
 
 void event_put(PebbleEvent *event) {
-  cl_assert_equal_i(event->type, PEBBLE_DREW_UPDATES_EVENT);
+  cl_assert_equal_i(event->type, PEBBLE_DREW_EVENT);
+  cl_assert_equal_i(event->drew.type, DrewEventUpdates);
   s_num_events++;
 }
 

@@ -441,7 +441,7 @@ static void prv_event_handler(PebbleEvent *event, void *context) {
 static void prv_expand_cb(SettingsCallbacks *context) {
   SettingsUpdatesData *data = (SettingsUpdatesData *)context;
   data->updates_event_info = (EventServiceInfo){
-    .type = PEBBLE_DREW_UPDATES_EVENT,
+    .type = PEBBLE_DREW_EVENT,
     .handler = prv_event_handler,
     .context = data,
   };

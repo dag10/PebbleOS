@@ -12,6 +12,7 @@
 #include <pbl/services/bluetooth/bluetooth_persistent_storage_debug.h>
 #include <pbl/services/bluetooth/local_addr.h>
 #include <pbl/services/bluetooth/pairability.h>
+#include <pbl/services/drew_protocol.h>
 #include <pbl/services/settings/settings_file.h>
 #include <pbl/services/shared_prf_storage/shared_prf_storage.h>
 #include <pbl/util/math.h>
@@ -486,6 +487,9 @@ typedef struct {
 static void prv_call_ble_bonding_change_handlers_impl(pbl_bt_bonding_id_t bonding,
                                                       BtPersistBondingOp op) {
   prv_update_active_gateway_if_needed(bonding, op);
+#ifdef CONFIG_SERVICE_DREW_PROTOCOL
+  drew_protocol_handle_bonding_change(bonding, op);
+#endif
 
   if (!bt_ctl_is_bluetooth_running()) {
     return;

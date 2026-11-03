@@ -129,8 +129,8 @@ typedef enum {
   PEBBLE_LANGUAGE_CHANGE_EVENT,
   PEBBLE_MIC_STREAM_EVENT,
   PEBBLE_MIC_CAPTURE_EVENT,
-  //! DrewPebbleOS: the updates list, check state or an install status changed (drew_updates.h)
-  PEBBLE_DREW_UPDATES_EVENT,
+  //! DrewPebbleOS: something on the Drew endpoint changed, see DrewEventType
+  PEBBLE_DREW_EVENT,
 
   PEBBLE_NUM_EVENTS
 } PebbleEventType;
@@ -625,6 +625,17 @@ typedef struct PBL_PACKED { // 8 bytes
   PebbleProtocolCapabilities flags_diff;
 } PebbleCapabilitiesChangedEvent;
 
+typedef enum DrewEventType {
+  //! The updates list, check state or an install status changed (drew_updates.h).
+  DrewEventUpdates,
+  //! The phone's Drew features changed (drew_protocol.h).
+  DrewEventPhoneFeatures,
+} DrewEventType;
+
+typedef struct PBL_PACKED PebbleDrewEvent {
+  DrewEventType type : 8;
+} PebbleDrewEvent;
+
 typedef enum WeatherEventType {
   WeatherEventType_WeatherDataAdded,
   WeatherEventType_WeatherDataRemoved,
@@ -837,6 +848,7 @@ typedef struct PBL_PACKED PBL_ALIGNED(sizeof(void *)) {
     PebbleBacklightEvent backlight;
     PebbleMicStreamEvent mic_stream;
     PebbleMicCaptureEvent mic_capture;
+    PebbleDrewEvent drew;
   };
   PebbleTaskBitset task_mask; // 1 == filter out, 0 == leave in
   // NOTE: we put this 8 bit field at the end so that we can pack this structure and still keep the

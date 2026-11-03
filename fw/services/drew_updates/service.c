@@ -137,7 +137,8 @@ static void prv_free_entries(List *list) {
 
 static void prv_post_event(void) {
   PebbleEvent e = {
-    .type = PEBBLE_DREW_UPDATES_EVENT,
+    .type = PEBBLE_DREW_EVENT,
+    .drew.type = DrewEventUpdates,
   };
   event_put(&e);
 }
