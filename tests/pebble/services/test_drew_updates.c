@@ -43,7 +43,8 @@ int pbl_pp_send(struct pbl_pp_session *session, uint16_t endpoint_id, const uint
 }
 
 void event_put(PebbleEvent *event) {
-  cl_assert_equal_i(event->type, PEBBLE_DREW_UPDATES_EVENT);
+  cl_assert_equal_i(event->type, PEBBLE_DREW_EVENT);
+  cl_assert_equal_i(event->drew.type, DrewEventUpdates);
   s_num_events++;
 }
 

@@ -131,8 +131,8 @@ typedef enum {
   //! Emitted when the effective dark mode flips, whether the cause is the mode pref or the
   //! schedule. Only emitted on changes of \ref system_theme_is_dark_mode.
   PEBBLE_DARK_MODE_CHANGE_EVENT,
-  //! DrewPebbleOS: the updates list, check state or an install status changed (drew_updates.h)
-  PEBBLE_DREW_UPDATES_EVENT,
+  //! DrewPebbleOS: something on the Drew endpoint changed, see DrewEventType
+  PEBBLE_DREW_EVENT,
 
   PEBBLE_NUM_EVENTS
 } PebbleEventType;
@@ -631,6 +631,17 @@ typedef struct PBL_PACKED { // 8 bytes
   struct pbl_pp_capabilities flags_diff;
 } PebbleCapabilitiesChangedEvent;
 
+typedef enum DrewEventType {
+  //! The updates list, check state or an install status changed (drew_updates.h).
+  DrewEventUpdates,
+  //! The phone's Drew features changed (drew_protocol.h).
+  DrewEventPhoneFeatures,
+} DrewEventType;
+
+typedef struct PBL_PACKED PebbleDrewEvent {
+  DrewEventType type : 8;
+} PebbleDrewEvent;
+
 typedef enum WeatherEventType {
   WeatherEventType_WeatherDataAdded,
   WeatherEventType_WeatherDataRemoved,
@@ -845,6 +856,7 @@ typedef struct PBL_PACKED PBL_ALIGNED(sizeof(void *)) {
     PebbleBacklightEvent backlight;
     PebbleMicStreamEvent mic_stream;
     PebbleMicCaptureEvent mic_capture;
+    PebbleDrewEvent drew;
   };
   PebbleTaskBitset task_mask; // 1 == filter out, 0 == leave in
   // NOTE: we put this 8 bit field at the end so that we can pack this structure and still keep the
