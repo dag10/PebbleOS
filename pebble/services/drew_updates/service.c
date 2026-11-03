@@ -7,7 +7,6 @@
 #include <pbl/kernel/mutex.h>
 #include <pbl/kernel/work.h>
 #include <pbl/logging/logging.h>
-#include <pbl/pp/endpoint.h>
 #include <pbl/pp/send.h>
 #include <pbl/pp/session.h>
 #include <pbl/services/drew_updates.h>
@@ -138,7 +137,8 @@ static void prv_free_entries(List *list) {
 
 static void prv_post_event(void) {
   PebbleEvent e = {
-    .type = PEBBLE_DREW_UPDATES_EVENT,
+    .type = PEBBLE_DREW_EVENT,
+    .drew.type = DrewEventUpdates,
   };
   event_put(&e);
 }
@@ -334,9 +334,6 @@ void drew_updates_protocol_msg_callback(struct pbl_pp_session *session, const ui
       break;
   }
 }
-
-PBL_PP_ENDPOINT_DEFINE(DREW_UPDATES_ENDPOINT_ID, PBL_PP_ACCESS_PRIVATE,
-                       drew_updates_protocol_msg_callback);
 
 // Outbound
 ////////////

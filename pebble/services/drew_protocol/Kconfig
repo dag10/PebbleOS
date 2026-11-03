@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Drew Gottlieb
+# SPDX-License-Identifier: Apache-2.0
+
+config SERVICE_DREW_PROTOCOL
+    bool "DrewPebbleOS endpoint"
+    help
+      DrewPebbleOS: the private endpoint (0xde01) DrewMobileApp talks to,
+      with hellos that exchange each side's Drew features.
+
+if SERVICE_DREW_PROTOCOL
+
+module = SERVICE_DREW_PROTOCOL
+module-str = Drew protocol
+source "subsys/logging/Kconfig.template.log_level"
+
+endif
