@@ -77,6 +77,9 @@ uint64_t drew_protocol_local_features(void) {
 #endif
   features |= DREW_FEATURE_BIT(DrewFeatureHeartbeat);
   features |= DREW_FEATURE_BIT(DrewFeatureFindPhone);
+#ifndef CONFIG_RECOVERY_FW
+  features |= DREW_FEATURE_BIT(DrewFeatureNotificationFlags);
+#endif
   features |= DREW_FEATURE_BIT(DrewFeaturePrefs);
   return features;
 }
