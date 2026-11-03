@@ -698,22 +698,22 @@
       "md_fn": "quick_launch_nothing_get_app_info"
     },
     {
-      "id": -150,
+      "id": -10001,
       "enum": "QUICK_LAUNCH_WATCHFACE",
       "md_fn": "quick_launch_watchface_get_app_info"
     },
     {
-      "id": -151,
+      "id": -10002,
       "enum": "QUICK_LAUNCH_MUSIC_PLAY_PAUSE",
       "md_fn": "quick_launch_music_play_pause_get_app_info"
     },
     {
-      "id": -152,
+      "id": -10003,
       "enum": "QUICK_LAUNCH_MUSIC_NEXT_TRACK",
       "md_fn": "quick_launch_music_next_track_get_app_info"
     },
     {
-      "id": -153,
+      "id": -10004,
       "enum": "QUICK_LAUNCH_MUSIC_PREVIOUS_TRACK",
       "md_fn": "quick_launch_music_previous_track_get_app_info"
     },
