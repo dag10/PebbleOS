@@ -428,7 +428,9 @@ static DarkModeSchedule s_dark_mode_schedule = DEFAULT_DARK_MODE_SCHEDULE;
 #define PREF_KEY_MUSIC_SHOW_VOLUME_CONTROLS "musicShowVolumeControls"
 #define PREF_KEY_MUSIC_SHOW_PROGRESS_BAR    "musicShowProgressBar"
 #define PREF_KEY_MUSIC_SHOW_ALBUM_ART       "musicShowAlbumArt"
-#define PREF_KEY_LAUNCHER_SORT_MODE         "launcherSortMode"
+#define PREF_KEY_LAUNCHER_SORT_MODE         "drewLauncherSortMode"
+// The key before it took the DrewPebbleOS prefix; read once by prv_migrate_launcher_sort_mode().
+#define PREF_KEY_LAUNCHER_SORT_MODE_OLD "launcherSortMode"
 
 static bool s_menu_scroll_wrap_around = false;
 static MenuScrollVibeBehavior s_menu_scroll_vibe_behavior = MenuScrollNoVibe;
@@ -1302,6 +1304,24 @@ static void prv_migrate_activity_spo2_prefs(struct pbl_settings_file *file) {
   pbl_settings_set(file, PREF_KEY_ACTIVITY_SPO2_PREFERENCES, key_len, &settings, sizeof(settings));
 }
 
+// The launcher sort mode moved to a DrewPebbleOS-prefixed key, so an upstream pref named
+// "launcherSortMode" can't clash with it. Only the watch writes it, with the terminator.
+static void prv_migrate_launcher_sort_mode(struct pbl_settings_file *file) {
+  const size_t old_len = sizeof(PREF_KEY_LAUNCHER_SORT_MODE_OLD);
+  if (!pbl_settings_exists(file, PREF_KEY_LAUNCHER_SORT_MODE_OLD, old_len)) {
+    return;
+  }
+  const size_t new_len = sizeof(PREF_KEY_LAUNCHER_SORT_MODE);
+  LauncherSortMode mode;
+  if (!pbl_settings_exists(file, PREF_KEY_LAUNCHER_SORT_MODE, new_len) &&
+      pbl_settings_get_len(file, PREF_KEY_LAUNCHER_SORT_MODE_OLD, old_len) == sizeof(mode) &&
+      pbl_settings_get(file, PREF_KEY_LAUNCHER_SORT_MODE_OLD, old_len, &mode, sizeof(mode)) == 0) {
+    PBL_LOG_INFO("Moving %s to %s", PREF_KEY_LAUNCHER_SORT_MODE_OLD, PREF_KEY_LAUNCHER_SORT_MODE);
+    pbl_settings_set(file, PREF_KEY_LAUNCHER_SORT_MODE, new_len, &mode, sizeof(mode));
+  }
+  pbl_settings_delete(file, PREF_KEY_LAUNCHER_SORT_MODE_OLD, old_len);
+}
+
 // ------------------------------------------------------------------------------------
 static void prv_pref_set(const char *key, const void *value, size_t val_len);
 
@@ -1324,6 +1344,7 @@ void shell_prefs_init(void) {
 #endif
   prv_migrate_activity_hrm_prefs(&file);
   prv_migrate_activity_spo2_prefs(&file);
+  prv_migrate_launcher_sort_mode(&file);
 
 #if !TIMELINE_PEEK_WATCHFACE_FIT_SUPPORTED
   {

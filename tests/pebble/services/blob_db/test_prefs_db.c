@@ -3,6 +3,7 @@
 
 #include <pbl/fs/fs.h>
 #include <pbl/services/blob_db/prefs_db.h>
+#include <pbl/settings/settings.h>
 #include <pbl/util/size.h>
 #include <pbl/util/uuid.h>
 
@@ -317,4 +318,39 @@ void test_prefs_db__quick_launch_combo_tap(void) {
   prv_insert_tap_pref("qlDoubleTapBackSelect", false, &invalid_uuid);
   prv_insert_tap_pref("qlTripleTapBackUp", false, &invalid_uuid);
   prv_insert_tap_pref("qlTripleTapBackDown", false, &invalid_uuid);
+}
+
+extern void shell_prefs_init(void);
+
+static int prv_shell_pref_len(const char *key) {
+  struct pbl_settings_file file;
+  cl_assert_equal_i(pbl_settings_open(&file, SHELL_PREFS_FILE_NAME, SHELL_PREFS_FILE_LEN), 0);
+  const int len = pbl_settings_get_len(&file, key, strlen(key) + 1);
+  pbl_settings_close(&file);
+  return len;
+}
+
+void test_prefs_db__launcher_sort_mode_moves_to_its_drew_key(void) {
+  pbl_fs_format("/");
+  shell_prefs_set_launcher_sort_mode(LauncherSortMode_Default);
+  pbl_fs_format("/");
+
+  // The mode as the watch stored it under its old key.
+  struct pbl_settings_file file;
+  cl_assert_equal_i(pbl_settings_open(&file, SHELL_PREFS_FILE_NAME, SHELL_PREFS_FILE_LEN), 0);
+  const LauncherSortMode mode = LauncherSortMode_RecentlyUsed;
+  cl_assert_equal_i(
+      pbl_settings_set(&file, "launcherSortMode", sizeof("launcherSortMode"), &mode, sizeof(mode)),
+      0);
+  pbl_settings_close(&file);
+
+  shell_prefs_init();
+  cl_assert_equal_i(shell_prefs_get_launcher_sort_mode(), LauncherSortMode_RecentlyUsed);
+  cl_assert(prv_shell_pref_len("launcherSortMode") <= 0);
+  cl_assert_equal_i(prv_shell_pref_len("drewLauncherSortMode"), sizeof(mode));
+
+  // Once moved, the new key wins and the old one isn't read again.
+  shell_prefs_set_launcher_sort_mode(LauncherSortMode_Default);
+  shell_prefs_init();
+  cl_assert_equal_i(shell_prefs_get_launcher_sort_mode(), LauncherSortMode_Default);
 }
