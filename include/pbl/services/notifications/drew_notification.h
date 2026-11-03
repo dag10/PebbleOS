@@ -13,8 +13,8 @@
  * @ingroup services_notifications
  * @brief DrewPebbleOS: Critical, Discreet and Quiet Time breaking notifications.
  *
- * DrewMobileApp sets these in the AttributeIdDrewNotificationFlags attribute of a notification,
- * only for a watch that announces drew_notification_flags_support.
+ * DrewMobileApp sets these in the AttributeIdDrewNotificationFlags attribute (0xD0) of a
+ * notification, only for a watch that announces DrewFeatureNotificationFlags.
  *
  * - Critical: the notification popup repeats the alarm vibe until a button is pressed, for at
  *   most 10 minutes.
