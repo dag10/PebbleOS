@@ -13,6 +13,7 @@
 #include <pbl/pp/session.h>
 #include <pbl/services/bluetooth/bluetooth_persistent_storage.h>
 #include <pbl/services/drew_protocol.h>
+#include <pbl/services/drew_updates.h>
 #include <pbl/settings/settings.h>
 #include <pbl/util/math.h>
 
@@ -67,6 +68,9 @@ static uint8_t s_hello_sends;
 
 uint64_t drew_protocol_local_features(void) {
   uint64_t features = 0;
+#ifdef CONFIG_SERVICE_DREW_UPDATES
+  features |= DREW_FEATURE_BIT(DrewFeatureUpdates);
+#endif
   features |= DREW_FEATURE_BIT(DrewFeaturePrefs);
   return features;
 }
@@ -369,6 +373,11 @@ void drew_protocol_msg_callback(struct pbl_pp_session *session, const uint8_t *d
     case DrewServiceCore:
       prv_handle_core(command, payload, payload_length);
       return;
+#ifdef CONFIG_SERVICE_DREW_UPDATES
+    case DrewServiceUpdates:
+      drew_updates_handle_message(command, payload, payload_length);
+      return;
+#endif
     default:
       PBL_LOG_WRN("Unknown service 0x%x, dropped", service);
       return;
