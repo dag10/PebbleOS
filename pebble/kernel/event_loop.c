@@ -32,7 +32,6 @@
 #include <pbl/services/language_pack.h>
 #include <pbl/services/light.h>
 #include <pbl/services/music_internal.h>
-#include <pbl/services/ping.h>
 #include <pbl/services/put_bytes/put_bytes.h>
 #include <pbl/task_wdt/task_wdt.h>
 
@@ -624,9 +623,6 @@ static PBL_NOINLINE void prv_launcher_main_loop_init(void) {
 #endif
   tick_timer_service_init();
   debounced_connection_service_init();
-#ifdef CONFIG_SERVICE_PING
-  ping_heartbeat_init();
-#endif
   event_service_system_init();
   modal_manager_init();
 
