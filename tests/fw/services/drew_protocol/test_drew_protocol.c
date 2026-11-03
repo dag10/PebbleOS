@@ -23,10 +23,8 @@ const FirmwareMetadata TINTIN_METADATA = {
   .version_tag = "v4.44.1-drew.6",
 };
 
-// The features this firmware announces.
-#define LOCAL_FEATURES                                                             \
-  (DREW_FEATURE_BIT(DrewFeatureUpdates) | DREW_FEATURE_BIT(DrewFeatureHeartbeat) | \
-   DREW_FEATURE_BIT(DrewFeatureFindPhone) | DREW_FEATURE_BIT(DrewFeaturePrefs))
+// The features this firmware announces: 0-4, as in the spec's WatchHello example.
+#define LOCAL_FEATURES (0x1f)
 
 static CommSession *s_session;
 static bool s_has_gateway;
@@ -124,13 +122,11 @@ static void prv_fire_hello_timer(void) {
   fake_system_task_callbacks_invoke_pending();
 }
 
-//! The WatchHello this firmware sends, as in the spec's example but with its own features.
+//! The spec's WatchHello example: features 0-4, build "v4.44.1-drew.6", with @p flags.
 static void prv_assert_watch_hello(const Sent *sent, uint8_t flags) {
   const uint8_t expected[] = {
-    0x44, 0x52, 0x45, 0x57, 0x01, 0x00, 0x01, flags, 0x08, (uint8_t)LOCAL_FEATURES,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e,  0x76, 0x34,
-    0x2e, 0x34, 0x34, 0x2e, 0x31, 0x2d, 0x64, 0x72,  0x65, 0x77,
-    0x2e, 0x36,
+    0x44, 0x52, 0x45, 0x57, 0x01, 0x00, 0x01, flags, 0x08, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x0e, 0x76, 0x34, 0x2e, 0x34, 0x34, 0x2e,  0x31, 0x2d, 0x64, 0x72, 0x65, 0x77, 0x2e, 0x36,
   };
   cl_assert_equal_i(sent->length, sizeof(expected));
   cl_assert_equal_m(sent->data, expected, sizeof(expected));

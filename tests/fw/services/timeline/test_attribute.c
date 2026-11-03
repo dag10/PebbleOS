@@ -809,7 +809,7 @@ void test_attribute__drew_notification_flags_deserializes(void) {
   static const uint8_t serialized[] = {
     0x01, // AttributeIdTitle
     0x02, 0x00, 'H',  'i',
-    0x3f, // AttributeIdDrewNotificationFlags
+    0xd0, // AttributeIdDrewNotificationFlags
     0x01, 0x00, 0x07,
   };
   const uint8_t num_attributes = 2;
@@ -817,7 +817,10 @@ void test_attribute__drew_notification_flags_deserializes(void) {
   bool has_attribute[NumAttributeIds] = {};
   cl_assert_equal_b(attribute_check_serialized_list(serialized, end, num_attributes, has_attribute),
                     true);
-  cl_assert_equal_b(has_attribute[AttributeIdDrewNotificationFlags], true);
+  // Beyond NumAttributeIds, so only the title is recorded.
+  for (int i = 0; i < NumAttributeIds; i++) {
+    cl_assert_equal_b(has_attribute[i], i == AttributeIdTitle);
+  }
 
   Attribute attribute_buffer[num_attributes];
   char data_buffer[16];

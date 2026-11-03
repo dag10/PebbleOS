@@ -191,14 +191,21 @@ typedef enum {
   AttributeIdImageAspectRatio = 52,
   /** (uint8) WeatherPinKind of a weather pin. */
   AttributeIdWeatherPinKind = 53,
-  /**
-   * (uint8) DrewPebbleOS: DrewNotificationFlag bits of a notification. Kept well above
-   * upstream's ids, which are allocated in sequence.
-   */
-  AttributeIdDrewNotificationFlags = 63,
   /** Number of attribute ids. */
   NumAttributeIds,
+
+  // DrewPebbleOS ids live in 0xD0-0xDF, far from upstream's sequence and outside
+  // NumAttributeIds, so has_attribute[] arrays never see them.
+
+  /**
+   * (uint8) DrewPebbleOS: DrewNotificationFlag bits of a notification. The phone sends it only
+   * to a watch that announces DrewFeatureNotificationFlags.
+   */
+  AttributeIdDrewNotificationFlags = 0xD0,
 } AttributeId;
+
+_Static_assert(NumAttributeIds <= AttributeIdDrewNotificationFlags,
+               "Upstream's attribute ids reached DrewPebbleOS's 0xD0-0xDF block");
 
 /** @brief Variable-length list of 32-bit values. */
 typedef struct {
