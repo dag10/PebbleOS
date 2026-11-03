@@ -94,8 +94,6 @@ typedef enum {
   CommSessionSettingsSyncSupport = 1 << 23,
   /** Phone tracks which notification the watch is displaying. */
   CommSessionNotificationWindowStateSupport = 1 << 26,
-  /** DrewPebbleOS: phone answers pings and wants one every few minutes to wake it. */
-  CommSessionDrewHeartbeatSupport = 1 << 29,
   /** First value past the defined capabilities. */
   CommSessionOutOfRange
 } CommSessionCapability;
