@@ -7,8 +7,8 @@
 #include <pbl/kernel/mutex.h>
 #include <pbl/kernel/work.h>
 #include <pbl/logging/logging.h>
-#include <pbl/pp/send.h>
 #include <pbl/pp/session.h>
+#include <pbl/services/drew_protocol.h>
 #include <pbl/services/drew_updates.h>
 
 #include <kernel/events.h>
@@ -16,8 +16,9 @@
 PBL_LOG_MODULE_DEFINE(service_drew_updates, CONFIG_SERVICE_DREW_UPDATES_LOG_LEVEL);
 
 //! @file
-//! Settings > Updates protocol (docs/drew-os-extensions.md in pebble-workspace). Little-endian;
-//! strings are a length (1 byte, 2 for the changelog) then UTF-8 without a NUL.
+//! Settings > Updates protocol (docs/drew-os-extensions.md in pebble-workspace), service Updates
+//! on the Drew endpoint. Little-endian; strings are a length (1 byte, 2 for the changelog) then
+//! UTF-8 without a NUL.
 
 typedef enum {
   CmdListRequest = 0x01,
@@ -41,11 +42,6 @@ typedef struct List {
   uint8_t num_entries;
   StoredEntry *entries[DREW_UPDATES_MAX_ENTRIES];
 } List;
-
-typedef struct Outbound {
-  size_t length;
-  uint8_t data[];
-} Outbound;
 
 static PBL_MUTEX_DEFINE(s_mutex);
 static struct pbl_delayed_work s_check_timer;
@@ -312,14 +308,13 @@ static void prv_handle_install_status(Reader *r) {
   prv_post_event();
 }
 
-void drew_updates_protocol_msg_callback(struct pbl_pp_session *session, const uint8_t *data,
-                                        size_t length) {
+void drew_updates_handle_message(uint8_t command, const uint8_t *payload, size_t length) {
   Reader r = {
-    .data = data,
+    .data = payload,
     .length = length,
     .ok = true,
   };
-  switch (prv_u8(&r)) {
+  switch (command) {
     case CmdListHeader:
       prv_handle_header(&r);
       break;
@@ -330,7 +325,7 @@ void drew_updates_protocol_msg_callback(struct pbl_pp_session *session, const ui
       prv_handle_install_status(&r);
       break;
     default:
-      PBL_LOG_WRN("Unknown message 0x%x", length ? data[0] : 0);
+      PBL_LOG_WRN("Unknown command 0x%x", command);
       break;
   }
 }
@@ -338,38 +333,18 @@ void drew_updates_protocol_msg_callback(struct pbl_pp_session *session, const ui
 // Outbound
 ////////////
 
-static void prv_send_cb(void *data) {
-  Outbound *message = data;
-  struct pbl_pp_session *session = pbl_pp_session_get_system();
-  if (session) {
-    pbl_pp_send(session, DREW_UPDATES_ENDPOINT_ID, message->data, message->length,
-                PBL_PP_DEFAULT_TIMEOUT_MS);
-  }
-  pbl_free(message);
-}
-
-static bool prv_send(const uint8_t *data, size_t length) {
-  if (!drew_updates_phone_supported()) {
-    return false;
-  }
-  Outbound *message = pbl_malloc(sizeof(Outbound) + length);
-  if (!message) {
-    return false;
-  }
-  message->length = length;
-  memcpy(message->data, data, length);
-  pbl_sys_work_call(prv_send_cb, message);
-  return true;
+static bool prv_send(uint8_t command, const uint8_t *payload, size_t length) {
+  return drew_updates_phone_supported() &&
+         drew_protocol_send(DrewServiceUpdates, command, payload, length);
 }
 
 bool drew_updates_phone_supported(void) {
-  struct pbl_pp_session *session = pbl_pp_session_get_system();
-  return session && pbl_pp_session_has_capability(session, PBL_PP_CAP_DREW_UPDATES);
+  return pbl_pp_session_get_system() && drew_protocol_has_feature(DrewFeatureUpdates);
 }
 
 bool drew_updates_request_list(bool recheck) {
-  const uint8_t message[] = {CmdListRequest, recheck ? LIST_REQUEST_FLAG_RECHECK : 0};
-  if (!prv_send(message, sizeof(message))) {
+  const uint8_t payload[] = {recheck ? LIST_REQUEST_FLAG_RECHECK : 0};
+  if (!prv_send(CmdListRequest, payload, sizeof(payload))) {
     return false;
   }
   if (recheck) {
@@ -382,12 +357,11 @@ bool drew_updates_request_list(bool recheck) {
 }
 
 bool drew_updates_request_install(const char *id) {
-  uint8_t message[2 + DREW_UPDATES_ID_LENGTH];
+  uint8_t payload[1 + DREW_UPDATES_ID_LENGTH];
   const size_t id_length = strnlen(id, DREW_UPDATES_ID_LENGTH);
-  message[0] = CmdInstallRequest;
-  message[1] = id_length;
-  memcpy(&message[2], id, id_length);
-  if (!prv_send(message, 2 + id_length)) {
+  payload[0] = id_length;
+  memcpy(&payload[1], id, id_length);
+  if (!prv_send(CmdInstallRequest, payload, 1 + id_length)) {
     return false;
   }
   pbl_mutex_lock(&s_mutex, PBL_FOREVER);

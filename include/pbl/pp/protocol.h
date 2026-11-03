@@ -110,8 +110,6 @@ enum pbl_pp_capability : uint32_t {
   PBL_PP_CAP_SETTINGS_SYNC = 1U << 23,
   /** Phone tracks which notification the watch is displaying. */
   PBL_PP_CAP_NOTIFICATION_WINDOW_STATE = 1U << 26,
-  /** DrewPebbleOS: phone speaks the Settings > Updates protocol (drew_updates.h). */
-  PBL_PP_CAP_DREW_UPDATES = 1U << 28,
   /** DrewPebbleOS: phone answers pings and wants one every few minutes to wake it. */
   PBL_PP_CAP_DREW_HEARTBEAT = 1U << 29,
   /** DrewPebbleOS: phone plays a sound on SysMsgDrewFindPhone. Kept far above upstream's bits. */

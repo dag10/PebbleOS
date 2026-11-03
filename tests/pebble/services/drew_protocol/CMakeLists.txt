@@ -5,4 +5,6 @@ pbl_clar_test(test_drew_protocol
   SOURCES
     pebble/services/drew_protocol/service.c
     tests/fakes/fake_settings.c
+  DEFINES
+    CONFIG_SERVICE_DREW_UPDATES=1
 )
