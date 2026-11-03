@@ -23,7 +23,9 @@ const FirmwareMetadata TINTIN_METADATA = {
 };
 
 // The features this firmware announces.
-#define LOCAL_FEATURES (DREW_FEATURE_BIT(DrewFeatureUpdates) | DREW_FEATURE_BIT(DrewFeaturePrefs))
+#define LOCAL_FEATURES                                                             \
+  (DREW_FEATURE_BIT(DrewFeatureUpdates) | DREW_FEATURE_BIT(DrewFeatureFindPhone) | \
+   DREW_FEATURE_BIT(DrewFeaturePrefs))
 
 static CommSession *s_session;
 static bool s_has_gateway;
@@ -161,8 +163,8 @@ void test_drew_protocol__cleanup(void) {
 ///////////
 
 void test_drew_protocol__send_frames_the_payload(void) {
-  cl_assert(drew_protocol_send(DrewServiceFindPhone, 0x01, nullptr, 0));
-  cl_assert(drew_protocol_send(DrewServiceFindPhone, 0x02, nullptr, 0));
+  cl_assert(drew_protocol_send(DrewServiceFindPhone, DrewFindPhoneCommandStart, nullptr, 0));
+  cl_assert(drew_protocol_send(DrewServiceFindPhone, DrewFindPhoneCommandStop, nullptr, 0));
   const uint8_t cookie[] = {0x07, 0x00, 0x00, 0x00};
   cl_assert(drew_protocol_send(DrewServiceCore, DrewCoreCommandHeartbeat, cookie, sizeof(cookie)));
   fake_system_task_callbacks_invoke_pending();

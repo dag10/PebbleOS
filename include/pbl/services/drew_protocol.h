@@ -46,6 +46,11 @@ typedef enum {
   DrewCoreCommandHeartbeatAck = 0x82,
 } DrewCoreCommand;
 
+typedef enum {
+  DrewFindPhoneCommandStart = 0x01,
+  DrewFindPhoneCommandStop = 0x02,
+} DrewFindPhoneCommand;
+
 //! Bit numbers in the feature sets of both hellos. Never reuse a retired bit.
 typedef enum {
   DrewFeatureUpdates = 0,
