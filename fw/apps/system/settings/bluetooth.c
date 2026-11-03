@@ -19,9 +19,8 @@
 #include <pbl/services/bluetooth/bluetooth_persistent_storage.h>
 #include <pbl/services/bluetooth/local_id.h>
 #include <pbl/services/bluetooth/pairability.h>
-#include <pbl/services/comm_session/session.h>
+#include <pbl/services/drew_protocol.h>
 #include <pbl/services/i18n/i18n.h>
-#include <pbl/services/system_task.h>
 #include <pbl/util/string.h>
 
 #include <applib/app.h>
@@ -36,7 +35,6 @@
 #include <comm/ble/gap_le_device_name.h>
 #include <comm/bt_lock.h>
 #include <kernel/pbl_malloc.h>
-#include <kernel/system_message.h>
 #include <kernel/ui/kernel_ui.h>
 #include <kernel/ui/system_icons.h>
 #include <resource/resource_ids.auto.h>
@@ -95,6 +93,7 @@ typedef struct SettingsBluetoothData {
   EventServiceInfo bt_connection_event_info;
   EventServiceInfo bt_pairing_event_info;
   EventServiceInfo ble_device_name_updated_event_info;
+  EventServiceInfo drew_event_info;
 #ifdef CONFIG_SERVICE_BLE_HRM
   EventServiceInfo ble_hrm_sharing_event_info;
 #endif
@@ -119,11 +118,9 @@ static bool prv_can_ping_phone(SettingsBluetoothData *data) {
   if (!first || !is_remote_connected(first)) {
     return false;
   }
-  // The cache outlives the system session and is cleared only when the phone changes, so the
-  // row stays while the app is briefly disconnected.
-  PebbleProtocolCapabilities capabilities;
-  bt_persistent_storage_get_cached_system_capabilities(&capabilities);
-  return (capabilities.flags & CommSessionDrewFindPhoneSupport) != 0;
+  // The phone's Drew features are cached across sessions, so the row stays while the app is
+  // briefly disconnected.
+  return drew_protocol_has_feature(DrewFeatureFindPhone);
 }
 
 static bool prv_is_ping_row(SettingsBluetoothData *data, uint16_t row) {
@@ -138,14 +135,6 @@ static uint16_t prv_num_rows(SettingsBluetoothData *data) {
   return list_count(data->remote_list_head) + 1 + (data->show_ping_row ? 1 : 0);
 }
 
-static void prv_send_system_message_cb(void *type) {
-  system_message_send((SystemMessageType)(uintptr_t)type);
-}
-
-static void prv_send_system_message(SystemMessageType type) {
-  system_task_add_callback(prv_send_system_message_cb, (void *)(uintptr_t)type);
-}
-
 static void prv_ping_timer_cb(void *context) {
   SettingsBluetoothData *data = context;
   data->ping_timer = nullptr;
@@ -156,10 +145,10 @@ static void prv_toggle_ping_phone(SettingsBluetoothData *data) {
   if (data->ping_timer) {
     app_timer_cancel(data->ping_timer);
     data->ping_timer = nullptr;
-    prv_send_system_message(SysMsgDrewFindPhoneStop);
+    drew_protocol_send(DrewServiceFindPhone, DrewFindPhoneCommandStop, nullptr, 0);
   } else {
     data->ping_timer = app_timer_register(PING_PHONE_DURATION_MS, prv_ping_timer_cb, data);
-    prv_send_system_message(SysMsgDrewFindPhone);
+    drew_protocol_send(DrewServiceFindPhone, DrewFindPhoneCommandStart, nullptr, 0);
   }
   settings_menu_mark_dirty(SettingsMenuItemBluetooth);
 }
@@ -313,6 +302,12 @@ static void prv_settings_bluetooth_event_handler(PebbleEvent *event, void *conte
       settings_menu_reload_data(SettingsMenuItemBluetooth);
       break;
     }
+
+    case PEBBLE_DREW_EVENT:
+      if (event->drew.type == DrewEventPhoneFeatures) {
+        settings_menu_reload_data(SettingsMenuItemBluetooth);
+      }
+      break;
 
     default:
       break;
@@ -629,6 +624,12 @@ static void prv_expand_cb(SettingsCallbacks *context) {
   event_service_client_subscribe(&data->bt_connection_event_info);
   event_service_client_subscribe(&data->bt_pairing_event_info);
   event_service_client_subscribe(&data->ble_device_name_updated_event_info);
+  data->drew_event_info = (EventServiceInfo){
+    .type = PEBBLE_DREW_EVENT,
+    .handler = prv_settings_bluetooth_event_handler,
+    .context = data,
+  };
+  event_service_client_subscribe(&data->drew_event_info);
 
   // Only enable pairing/advertising if there are no paired devices (single phone policy)
   data->did_enable_pairability = false;
@@ -659,6 +660,7 @@ static void prv_hide_cb(SettingsCallbacks *context) {
   event_service_client_unsubscribe(&data->bt_connection_event_info);
   event_service_client_unsubscribe(&data->bt_pairing_event_info);
   event_service_client_unsubscribe(&data->ble_device_name_updated_event_info);
+  event_service_client_unsubscribe(&data->drew_event_info);
   app_focus_service_unsubscribe();
 }
 

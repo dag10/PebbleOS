@@ -70,6 +70,7 @@ uint64_t drew_protocol_local_features(void) {
 #ifdef CONFIG_SERVICE_DREW_UPDATES
   features |= DREW_FEATURE_BIT(DrewFeatureUpdates);
 #endif
+  features |= DREW_FEATURE_BIT(DrewFeatureFindPhone);
   features |= DREW_FEATURE_BIT(DrewFeaturePrefs);
   return features;
 }
