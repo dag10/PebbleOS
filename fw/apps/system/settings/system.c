@@ -16,6 +16,7 @@
 #include <pbl/drivers/als.h>
 #include <pbl/kernel/assert.h>
 #include <pbl/kernel/fatal.h>
+#include <pbl/kernel/reboot.h>
 #include <pbl/services/blob_db/api.h>
 #include <pbl/services/bluetooth/local_id.h>
 #include <pbl/services/i18n/i18n.h>
@@ -50,6 +51,7 @@
 #include <shell/system_app_ids.auto.h>
 #include <syscall/syscall.h>
 #include <system/bootbits.h>
+#include <system/reboot_reason.h>
 #include <system/version.h>
 
 enum {
@@ -160,6 +162,7 @@ typedef enum {
   SystemMenuItemStationaryToggle,
   SystemMenuItemDebugging,
   SystemMenuItemShutDown,
+  SystemMenuItemRestart,
   SystemMenuItemFactoryReset,
   SystemMenuItem_Count,
 } SystemMenuItem;
@@ -170,6 +173,7 @@ static const char *s_item_titles[SystemMenuItem_Count] = {
   [SystemMenuItemStationaryToggle] = i18n_noop("Stand-By Mode"),
   [SystemMenuItemDebugging] = i18n_noop("Debugging"),
   [SystemMenuItemShutDown] = i18n_noop("Shut Down"),
+  [SystemMenuItemRestart] = i18n_noop("Restart"),
   [SystemMenuItemFactoryReset] = i18n_noop("Factory Reset"),
 };
 
@@ -1312,6 +1316,36 @@ static void prv_shutdown_cb(void *data) {
   actionable_dialog_push(a_dialog, modal_manager_get_window_stack(ModalPriorityGeneric));
 }
 
+static void prv_restart_confirm_cb(ClickRecognizerRef recognizer, void *context) {
+  actionable_dialog_pop((ActionableDialog *)context);
+  // No dedicated code exists, and this is the other user-forced reset
+  RebootReason reason = {RebootReasonCode_ResetButtonsHeld, 0};
+  reboot_reason_set(&reason);
+  pbl_reboot();
+}
+
+static void prv_restart_click_provider(void *context) {
+  window_single_click_subscribe(BUTTON_ID_SELECT, prv_restart_confirm_cb);
+  window_single_click_subscribe(BUTTON_ID_BACK, prv_shutdown_back_cb);
+}
+
+static void prv_restart_cb(void *data) {
+  ActionableDialog *a_dialog = actionable_dialog_create("Restart");
+  Dialog *dialog = actionable_dialog_get_dialog(a_dialog);
+
+  actionable_dialog_set_action_bar_type(a_dialog, DialogActionBarConfirm, nullptr);
+  actionable_dialog_set_click_config_provider(a_dialog, prv_restart_click_provider);
+
+  dialog_set_text_color(dialog, GColorWhite);
+  dialog_set_background_color(dialog, GColorCobaltBlue);
+  dialog_set_text(dialog, i18n_get("Do you want to restart?", a_dialog));
+  dialog_set_icon(dialog, RESOURCE_ID_GENERIC_QUESTION_LARGE);
+
+  i18n_free_all(a_dialog);
+
+  actionable_dialog_push(a_dialog, modal_manager_get_window_stack(ModalPriorityGeneric));
+}
+
 static void prv_deinit_cb(SettingsCallbacks *context) {
   SettingsSystemData *data = (SettingsSystemData *)context;
   i18n_free_all(data);
@@ -1327,6 +1361,7 @@ static void prv_draw_row_cb(SettingsCallbacks *context, GContext *ctx, const Lay
       subtitle = stationary_get_enabled() ? i18n_get("On", data) : i18n_get("Off", data);
       break;
     case SystemMenuItemShutDown:
+    case SystemMenuItemRestart:
     case SystemMenuItemInformation:
     case SystemMenuItemCertification:
     case SystemMenuItemDebugging:
@@ -1358,6 +1393,9 @@ static void prv_select_click_cb(SettingsCallbacks *context, uint16_t row) {
       break;
     case SystemMenuItemShutDown:
       launcher_task_add_callback(prv_shutdown_cb, 0);
+      break;
+    case SystemMenuItemRestart:
+      launcher_task_add_callback(prv_restart_cb, 0);
       break;
     case SystemMenuItemDebugging:
       prv_debugging_interstitial_trigger(data);
